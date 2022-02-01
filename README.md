@@ -48,15 +48,47 @@ Now we have the ceiling and floor heights in these variables:
 We can call the `indoor3d.pointcloid.crop` function with those limits for Y, and for X and Z we could take the bounding limits of the pointcloud, not to have problems cropping too much.
 
 ```python
+>>> import indoor3d.pointcloud as pointcloud
 >>> max_x, _, max_z = pcd.get_max_bound()
 >>> min_x, _, min_z = pcd.get_min_bound()
 >>> envolvent_points = [[min_x, floor_pcd, min_x], [min_x, floor_pcd, max_x],
 [min_x, ceiling_pcd, min_x], [min_x, ceiling_pcd, max_x],
 [max_x, floor_pcd, min_x], [max_x, floor_pcd, max_x],
 [max_x, ceiling_pcd, min_x], [max_x, ceiling_pcd, max_x]]
->>> pcd_cropped, _ = pointcloudrsait.crop(pcd, envolvent_points)
+>>> pcd_cropped, _ = pointcloud.crop(pcd, envolvent_points)
 >>> o3d.visualization.draw_geometries([pcd_cropped])
 ```
+
+![Pointcloud after removing some noise](images/pcd_cropped.png)
+
+It may be helpful to try to find the plane models of the main room from a pointcloud of the zones with more points stacked in the vertical, which would correspond to the walls. We divide the space into cubic voxels of *edge* size. In this case the edge is two centimeters. Then we count the points in each voxel and remove all the voxels below some percentile. Here, as we take a 95 percentile, we only retain the 5% more populated voxels. This could be improved, for example, taking succesive voxels till we cover a 50% (for example) of the total of points.
+
+```python
+>>> points_in_voxels, new_pcd = pointcloud.count_points_in_voxel_in_x_and_z(pcd_cropped, edge = 0.02, percentile = 95)
+>>> o3d.visualization.draw_geometries([new_pcd])
+```
+
+![Pointcloud with only the most populated voxels](images/pcd_populated_voxels.png)
+
+Then we look for the room plane models in the pointcloud that only contains areas with a lot of stacked points (95 percentile). As we already know the ceiling and floor heights, we pass them to the function, so it can compute the planes from those values. The parameter is *y_ceiling_floor = (ceiling_pcd, floor_pcd)*. The plane models are computed with a tolerance of 5 centimeters, which means that points at a distance less than 5 centimeters are supposed to be in the plane model.
+
+```python
+>>> import indoor3d.findroom as findroom
+>>> _, _, _, plane_models = findroom.find_room_in_hololens_pointcloud(new_pcd, y_ceiling_floor = (ceiling_pcd, floor_pcd), distance_threshold = 0.05)
+```
+
+And then we use that information for finding the right *inside_room* pointcloud, as well as *raw_limits_room*, *limits_room* and *plane_models*. The *plane_thickness* to extract the *raw_limits_room* is counted twice, one for each side of the plane, so the real thickness is twice the parameter value.
+
+```python
+>>> inside_room, raw_limits_room, limits_room, plane_models = findroom.find_room_in_hololens_pointcloud(pcd_cropped, given_planes = plane_models, plane_thickness = 0.025)
+```
+
+We now have the inside of the room, that it is our main area of interest:
+```python
+>>> o3d.visualization.draw_geometries([inside_room])
+```
+
+We could also be interested in the plane models of the limits of the room. The walls are parallel in this way: *wall_1_1* is parallel to *wall_1_2* and *wall_2_1* is parallel to *wall_2_2*.
 
 ## Creating Sphinx documentation
 
