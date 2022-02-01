@@ -11,7 +11,7 @@ import math
 from sympy import Point3D, Plane
 from typing import List, Tuple, Dict, Union, Optional, Iterable, NamedTuple
 from typing import Type
-import indoor3d.plane as plane
+import indoor3d.plane as indplane
 from scipy.spatial import ConvexHull
 import scipy
 from numpy.random import default_rng
@@ -19,14 +19,14 @@ from collections import Counter
 
 numeric = Union[int, float, np.number]
 
-def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plane: Type[plane.PlaneIndoor]) -> float:
+def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plane: Type[indplane.PlaneIndoor]) -> float:
     """
     Returns the distance between the pointcloud and the plane.
 
     :param pcd: Pointcloud.
     :type pcd: o3d.geometry.PointCloud
     :param plane: Plane model.
-    :type plane: Type[plane.PlaneIndoor]
+    :type plane: Type[indplane.PlaneIndoor]
     :return: Distance between the pointcloud and the plane.
     :rtype: float
 
@@ -39,7 +39,7 @@ def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plan
         >>> import open3d as o3d
         >>> mesh_box = o3d.geometry.TriangleMesh.create_box(width=1.0, height=5.0, depth=1.0)
         >>> pcd = mesh_box.sample_points_uniformly(number_of_points = 10000, seed = 42)
-        >>> plane = plane.PlaneIndoor((1, 1, 1, 1))
+        >>> plane = indplane.PlaneIndoor((1, 1, 1, 1))
         >>> distance = pointcloud.get_distance_between_pointcloud_and_plane(pcd, plane)
         >>> distance
         0.5886230622926497
@@ -87,7 +87,7 @@ def get_distance_between_pointcloud_and_point(pcd: o3d.geometry.PointCloud, poin
 # return the points in the plane, and in the two sides of the plane
 # tolerance is the maximum distance of the points in the plane to the plane
 def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointCloud,
-                                                        plane: Type[plane.PlaneIndoor],
+                                                        plane: Type[indplane.PlaneIndoor],
                                                         plane_thickness: float = 0,
                                                         debug: bool = False) -> Dict[str, o3d.geometry.PointCloud]:
     '''
@@ -102,7 +102,7 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
     :param pcd: Pointcloud to be segmented.
     :type pcd: o3d.geometry.PointCloud
     :param plane_model: Plane to partition the space.
-    :type plane_model: Type[plane.PlaneIndoor]
+    :type plane_model: Type[indplane.PlaneIndoor]
     :param plane_thickness: Maximum distance from the plane to be considered for the pointcloud "in_plane".
     :type plane_thickness: float
     :param debug: if debug information is shown, default is False.
@@ -121,7 +121,7 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane = plane.PlaneIndoor((0, 0, 1, 0))
+        >>> plane = indplane.PlaneIndoor((0, 0, 1, 0))
         >>> dict_clouds = pointcloud.get_partition_of_pointcloud_by_plane_with_thickness(pcd, plane, plane_thickness = 10)
         >>> dict_clouds
         {'in_plane': PointCloud with 14374 points., 'positive': PointCloud with 57124 points., 'negative': PointCloud with 61511 points.}
@@ -132,7 +132,7 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
 
     pcd_points = np.asarray(pcd.points)
     pcd_colors = np.asarray(pcd.colors)
-    dist, sign = plane.get_distance_and_sign_between_plane_and_points(plane, pcd_points)
+    dist, sign = indplane.get_distance_and_sign_between_plane_and_points(plane, pcd_points)
     list_points_in_plane = pcd_points[dist <= plane_thickness]
     list_colors_in_plane = pcd_colors[dist <= plane_thickness]
     positive_condition = np.logical_and(dist > plane_thickness, sign > 0)
@@ -161,8 +161,8 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
 
 #@profile
 def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d.geometry.PointCloud,
-                                                                        plane_1: Type[plane.PlaneIndoor],
-                                                                        plane_2: Type[plane.PlaneIndoor],
+                                                                        plane_1: Type[indplane.PlaneIndoor],
+                                                                        plane_2: Type[indplane.PlaneIndoor],
                                                                         plane_thickness: float = 0) -> Dict[str, o3d.geometry.PointCloud]:
     """
     Given a point cloud and two parallel (up to some tolerance not defined here) plane models,
@@ -178,9 +178,9 @@ def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d
     :param pcd: Pointcloud to be segmented.
     :type pcd: o3d.geometry.PointCloud
     :param plane_1: Plane model to partition the space.
-    :type plane_1: Type[plane.PlaneIndoor]
+    :type plane_1: Type[indplane.PlaneIndoor]
     :param plane_2: Plane model to partition the space.
-    :type plane_2: Type[plane.PlaneIndoor]
+    :type plane_2: Type[indplane.PlaneIndoor]
     :param plane_thickness: Maximum distance from the plane to be considered for the pointcloud "in_plane".
     :type plane_thickness: float
     :return: Dictionary of pointclouds as values and with five keys: "in_plane_1", "in_plane_2", "middle", "one_side" and "other_side".
@@ -197,8 +197,8 @@ def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane_1 = plane.PlaneIndoor((0, 0, 1, 0))
-        >>> plane_2 = plane.PlaneIndoor((0, 0, 1, 30))
+        >>> plane_1 = indplane.PlaneIndoor((0, 0, 1, 0))
+        >>> plane_2 = indplane.PlaneIndoor((0, 0, 1, 30))
         >>> dict_clouds = pointcloud.get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd, plane_1, plane_2, plane_thickness = 5)
         >>> dict_clouds
         {'one_side': PointCloud with 60690 points., 'other_side': PointCloud with 42574 points., 'middle': PointCloud with 14660 points., 'in_plane_1': PointCloud with 7192 points., 'in_plane_2': PointCloud with 7893 points.}
@@ -206,17 +206,17 @@ def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d
     # first, we find the space partitions by each plane
     dict_clouds_1 = get_partition_of_pointcloud_by_plane_with_thickness(pcd, plane_1, plane_thickness=plane_thickness)
     dict_clouds_2 = get_partition_of_pointcloud_by_plane_with_thickness(pcd, plane_2, plane_thickness=plane_thickness)
-    point_in_plane_2 = plane.get_point_on_plane_closest_to_the_origin(plane_2)
+    point_in_plane_2 = indplane.get_point_on_plane_closest_to_the_origin(plane_2)
     # we look for the sign of plane_2 with respect to plane_1
-    distance, sign = plane.get_distance_and_sign_between_plane_and_point(plane_1, point_in_plane_2)
+    distance, sign = indplane.get_distance_and_sign_between_plane_and_point(plane_1, point_in_plane_2)
     # and then we divide the space according to that sign; the "good half" is the same sign than plane_2
     if sign > 0:
         one_side, next_pcd = dict_clouds_1["negative"], dict_clouds_1["positive"]
     else:
         one_side, next_pcd = dict_clouds_1["positive"], dict_clouds_1["negative"]
-    point_in_plane_1 = plane.get_point_on_plane_closest_to_the_origin(plane_1)
+    point_in_plane_1 = indplane.get_point_on_plane_closest_to_the_origin(plane_1)
     # we look for the sign of plane_1 with respect to plane_2
-    distance, sign = plane.get_distance_and_sign_between_plane_and_point(plane_2, point_in_plane_1)
+    distance, sign = indplane.get_distance_and_sign_between_plane_and_point(plane_2, point_in_plane_1)
     # new partition of the previous "good half"
     dict_clouds_2 = get_partition_of_pointcloud_by_plane_with_thickness(next_pcd, plane_2, plane_thickness=plane_thickness)
     if sign > 0:
@@ -643,7 +643,7 @@ def get_pointcloud_negative_of_pointcloud(pcd: o3d.geometry.PointCloud, size: in
     return get_pointcloud_after_substracting_point_cloud(pcd_inside, pcd, threshold)
 
 def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCloud,
-                                                       plane: Type[plane.PlaneIndoor], percentage: float = 1.0,
+                                                       plane: Type[indplane.PlaneIndoor], percentage: float = 1.0,
                                                        seed: int = None) -> o3d.geometry.PointCloud:
     """
     Computes a projection of a pointcloud into a plane. The number of points of the projection is **percentage** points of the original pointcloud.
@@ -670,7 +670,7 @@ def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCl
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane = plane.PlaneIndoor((1, 2, 3, 4))
+        >>> plane = indplane.PlaneIndoor((1, 2, 3, 4))
         >>> projection = pointcloud.get_pointcloud_projection_onto_plane_of_pointcloud(pcd, plane, percentage = 0.3, seed = 42)
         >>> # o3d.visualization.draw_geometries([projection])
         >>> projection.points[0]
@@ -683,7 +683,7 @@ def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCl
     np.random.seed(seed)
     indices = np.random.choice(np.arange(len(pcd.points)), size = how_many, replace = False)
     for index in indices:
-        new_point = plane.get_point_projection_onto_plane(plane, pcd.points[index])
+        new_point = indplane.get_point_projection_onto_plane(plane, pcd.points[index])
         new_points.append(new_point)
         new_colors.append(pcd.colors[index])
     new_pcd.points = o3d.utility.Vector3dVector(new_points)
