@@ -10,7 +10,7 @@ Firt let's see the data with Open3D functionalities.
 >>> import open3d as o3d
 >>> import numpy as np
 
->>> pcd_filename = `file.ply`
+>>> pcd_filename = "file.ply"
 >>> pcd = o3d.io.read_point_cloud(pcd_filename)
 >>> o3d.visualization.draw_geometries([pcd])
 ```
@@ -87,8 +87,37 @@ We now have the inside of the room, that it is our main area of interest:
 ```python
 >>> o3d.visualization.draw_geometries([inside_room])
 ```
+![Inside of the main room](images/pcd_inside_room.png)
 
 We could also be interested in the plane models of the limits of the room. The walls are parallel in this way: *wall_1_1* is parallel to *wall_1_2* and *wall_2_1* is parallel to *wall_2_2*.
+
+```python
+>>> plane_models
+{'ceiling': PlaneIndoor(A=0,B=1,C=0,D=-1.6500000000000001),
+ 'floor': PlaneIndoor(A=0,B=1,C=0,D=1.58),
+ 'wall_1_1': PlaneIndoor(A=0.9193654417039261,B=-0.0003007234883748154,C=-0.3934044917968385,D=-2.3722421485747436),
+ 'wall_1_2': PlaneIndoor(A=0.9196322194811005,B=-0.004112564704252882,C=-0.39275904534945905,D=4.606395688156964),
+ 'wall_2_1': PlaneIndoor(A=0.39080894794977217,B=-0.00022279017158160784,C=0.9204717902070285,D=12.230166918437128),
+ 'wall_2_2': PlaneIndoor(A=0.3971059014216207,B=0.006871868354826012,C=0.9177470678141315,D=5.272589200451403)}
+```
+Let find the clusters inside the room.
+
+```python
+>>> list_clusters = clusteringroom.clustering_pcd_return_pcd_clusters(inside_room, eps = 0.05, min_points = 100)
+>>> o3d.visualization.draw_geometries(list_clusters)
+```
+
+![Clustering of the room](images/pcd_room_clusters.png)
+
+We can also get and idea of the boundaries of the clusters:
+
+```python
+>>> list_clusters_painted = clusteringroom.paint_list_of_clusters(list_clusters)
+>>> o3d.visualization.draw_geometries(list_clusters_painted)
+```
+
+![Clustering of the room](images/pcd_room_clusters_painted.png)
+
 
 ## Creating Sphinx documentation
 
