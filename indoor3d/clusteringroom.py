@@ -109,7 +109,7 @@ def sort_pcd_list_by_volume_of_convex_hull(pcd_list: List[o3d.geometry.PointClou
 
 #@profile
 def find_clusters_in_ceiling(pcd_list: List[o3d.geometry.PointCloud],
-                             planes: Dict[str, Type[plane.PlaneRSAIT]],
+                             planes: Dict[str, Type[plane.PlaneIndoor]],
                              tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
 
@@ -144,7 +144,7 @@ def find_clusters_in_ceiling(pcd_list: List[o3d.geometry.PointCloud],
 
 #@profile
 def find_clusters_in_floor(pcd_list: List[o3d.geometry.PointCloud],
-                           planes: Dict[str, Type[plane.PlaneRSAIT]],
+                           planes: Dict[str, Type[plane.PlaneIndoor]],
                            tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
 
@@ -178,7 +178,7 @@ def find_clusters_in_floor(pcd_list: List[o3d.geometry.PointCloud],
     return list_clusters_in_floor
 
 #@profile
-def close_to_walls(pcd: o3d.geometry.PointCloud, planes: Dict[str, Type[plane.PlaneRSAIT]],
+def close_to_walls(pcd: o3d.geometry.PointCloud, planes: Dict[str, Type[plane.PlaneIndoor]],
                    tolerance: float = 0.1) -> bool:
     return pointcloud.get_distance_between_pointcloud_and_plane(pcd, planes["wall_1_1"]) <= tolerance or \
            pointcloud.get_distance_between_pointcloud_and_plane(pcd, planes["wall_1_2"]) <= tolerance or \
@@ -187,7 +187,7 @@ def close_to_walls(pcd: o3d.geometry.PointCloud, planes: Dict[str, Type[plane.Pl
 
 #@profile
 def find_clusters_in_wall(pcd_list: List[o3d.geometry.PointCloud],
-                          planes: Dict[str, Type[plane.PlaneRSAIT]],
+                          planes: Dict[str, Type[plane.PlaneIndoor]],
                           tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
 
@@ -221,7 +221,7 @@ def find_clusters_in_wall(pcd_list: List[o3d.geometry.PointCloud],
 
 #@profile
 def find_clusters_column_candidates(pcd_list: List[o3d.geometry.PointCloud],
-                                    planes: Dict[str, Type[plane.PlaneRSAIT]],
+                                    planes: Dict[str, Type[plane.PlaneIndoor]],
                                     tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
 
@@ -257,7 +257,7 @@ def find_clusters_column_candidates(pcd_list: List[o3d.geometry.PointCloud],
 
 #@profile
 def find_clusters_open_door_candidates(pcd_list: List[o3d.geometry.PointCloud],
-                                       planes: Dict[str, Type[plane.PlaneRSAIT]],
+                                       planes: Dict[str, Type[plane.PlaneIndoor]],
                                        tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
 
@@ -294,7 +294,7 @@ def find_clusters_open_door_candidates(pcd_list: List[o3d.geometry.PointCloud],
 
 #@profile
 def find_clusters_to_remove(pcd_list: List[o3d.geometry.PointCloud],
-                            planes: Dict[str, Type[plane.PlaneRSAIT]],
+                            planes: Dict[str, Type[plane.PlaneIndoor]],
                             tolerance: float = 0.1) -> List[o3d.geometry.PointCloud]:
     """
     Clusters to remove because they are not close to the walls or the ceiling; everything we

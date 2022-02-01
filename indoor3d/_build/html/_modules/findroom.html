@@ -1,0 +1,1091 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>findroom &#8212; indoor3d 0 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">indoor3d 0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">findroom</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for findroom</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">In this module there are several functions to find a room in a pointcloud. It builds upon</span>
+<span class="sd">`plane&lt;plane&gt;_`, and assumes that the vertical direction of the pointcloud is the</span>
+<span class="sd">Y axis, with positive values going upwards.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">open3d</span> <span class="k">as</span> <span class="nn">o3d</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
+<span class="kn">import</span> <span class="nn">pickle</span> <span class="k">as</span> <span class="nn">pkl</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">scipy.spatial</span> <span class="kn">import</span> <span class="n">ConvexHull</span>
+<span class="kn">import</span> <span class="nn">plane</span>
+<span class="kn">import</span> <span class="nn">pointcloud</span>
+
+<div class="viewcode-block" id="save_room_context"><a class="viewcode-back" href="../api/findroom.save_room_context.html#findroom.save_room_context">[docs]</a><span class="k">def</span> <span class="nf">save_room_context</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                      <span class="n">pcd_cropped</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">pcd_not_cropped</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                      <span class="n">inside_room</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">],</span>
+                      <span class="c1"># raw_limits_room: Dict[str, o3d.geometry.PointCloud],</span>
+                      <span class="n">pcd_ceiling</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">pcd_floor</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                      <span class="n">pcd_wall_1_1</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">pcd_wall_1_2</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                      <span class="n">pcd_wall_2_1</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">pcd_wall_2_2</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                      <span class="n">plane_models</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+                      <span class="n">plane_thickness</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Saves to disk the information about a room: the inside, the ceiling, floor, walls, the plane</span>
+<span class="sd">    models as well as the thickness of the pointclouds related to planes.</span>
+
+<span class="sd">    :param inside_room: The inside of the room.</span>
+<span class="sd">    :type inside_room: o3d.geometry.PointCloud</span>
+<span class="sd">    :param limits_room: The limits of the room: ceiling, floor and walls.</span>
+<span class="sd">    :type limits_room: Dict[str, o3d.geometry.PointCloud]</span>
+<span class="sd">    :param plane_models: The plane models corresponsind to the room limits.</span>
+<span class="sd">    :type plane_models: Dict[str, Tuple[float, float, float, float]]</span>
+<span class="sd">    :param plane_thickness: The thickness of the poinclouds corresponding to the limits of the room.</span>
+<span class="sd">    :type plane_thickness: float</span>
+<span class="sd">    :param directory: The directory where the data will be stored.</span>
+<span class="sd">    :type directory: str</span>
+<span class="sd">    :return: Nothing.</span>
+<span class="sd">    :rtype: NoneType</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; plane_thickness = 0.05</span>
+<span class="sd">        &gt;&gt;&gt; inside_room, raw_limits_room, limits_room, plane_models = findroom.find_room_in_hololens_pointcloud(pcd, distance_threshold=0.05, plane_thickness= plane_thickness)</span>
+<span class="sd">        &gt;&gt;&gt; directory = home_dir + &quot;/Github/Lantegi/Code/Open3D/room_context&quot;</span>
+<span class="sd">        &gt;&gt;&gt; findroom.save_room_context(inside_room, limits_room, raw_limits_room, plane_models, plane_thickness, directory)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd.pcd&quot;</span><span class="p">,</span> <span class="n">pcd</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd_cropped.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_cropped</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd_not_cropped.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_not_cropped</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/inside_room.pcd&quot;</span><span class="p">,</span> <span class="n">inside_room</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/ceiling.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/floor.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_1_1.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_1_2.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_2_1.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_2_2.pcd&quot;</span><span class="p">,</span> <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">])</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_ceiling.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_ceiling</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_floor.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_floor</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_1_1.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_wall_1_1</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_1_2.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_wall_1_2</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_2_1.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_wall_2_1</span><span class="p">)</span>
+    <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_2_2.pcd&quot;</span><span class="p">,</span> <span class="n">pcd_wall_2_2</span><span class="p">)</span>
+    <span class="n">room_context</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;plane_models&quot;</span><span class="p">:</span> <span class="n">plane_models</span><span class="p">,</span> <span class="s2">&quot;plane_thickness&quot;</span><span class="p">:</span> <span class="n">plane_thickness</span><span class="p">}</span>
+    <span class="n">pkl</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">room_context</span><span class="p">,</span> <span class="nb">open</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/room_context.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="load_room_context"><a class="viewcode-back" href="../api/findroom.load_room_context.html#findroom.load_room_context">[docs]</a><span class="k">def</span> <span class="nf">load_room_context</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads the room context stored in a directory: the inside of the room, the limits (ceiling, floor, walls),</span>
+<span class="sd">    the plane models and the plane thickness.</span>
+
+<span class="sd">    :param directory: Directory where the data is stored.</span>
+<span class="sd">    :type directory: str</span>
+<span class="sd">    :return: All the context data previously stored.</span>
+<span class="sd">    :rtype: Dict[str, Any]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; room_context = findroom.load_room_context(&quot;room_context&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd.pcd&quot;</span><span class="p">)</span>
+    <span class="n">inside_room</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/inside_room.pcd&quot;</span><span class="p">)</span>
+    <span class="n">pcd_cropped</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd_cropped.pcd&quot;</span><span class="p">)</span>
+    <span class="n">pcd_not_cropped</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/pcd_not_cropped.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/ceiling.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/floor.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_1_1.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_1_2.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_2_1.pcd&quot;</span><span class="p">)</span>
+    <span class="n">limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/wall_2_2.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_ceiling.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_floor.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_1_1.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_1_2.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_2_1.pcd&quot;</span><span class="p">)</span>
+    <span class="n">raw_limits_room</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">read_point_cloud</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/raw_wall_2_2.pcd&quot;</span><span class="p">)</span>
+    <span class="n">room_context</span> <span class="o">=</span> <span class="n">pkl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;/room_context.pkl&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;pcd&quot;</span><span class="p">:</span> <span class="n">pcd</span><span class="p">,</span> <span class="s2">&quot;pcd_cropped&quot;</span><span class="p">:</span> <span class="n">pcd_cropped</span><span class="p">,</span> <span class="s2">&quot;pcd_not_cropped&quot;</span><span class="p">:</span> <span class="n">pcd_not_cropped</span><span class="p">,</span>
+            <span class="s2">&quot;inside_room&quot;</span><span class="p">:</span> <span class="n">inside_room</span><span class="p">,</span> <span class="s2">&quot;limits_room&quot;</span><span class="p">:</span> <span class="n">limits_room</span><span class="p">,</span>
+            <span class="s2">&quot;raw_limits_room&quot;</span><span class="p">:</span> <span class="n">raw_limits_room</span><span class="p">,</span>
+            <span class="s2">&quot;plane_models&quot;</span><span class="p">:</span> <span class="n">room_context</span><span class="p">[</span><span class="s2">&quot;plane_models&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;plane_thickness&quot;</span><span class="p">:</span> <span class="n">room_context</span><span class="p">[</span><span class="s2">&quot;plane_thickness&quot;</span><span class="p">]}</span></div>
+
+
+<div class="viewcode-block" id="get_line_set_from_room_limit_points"><a class="viewcode-back" href="../api/findroom.get_line_set_from_room_limit_points.html#findroom.get_line_set_from_room_limit_points">[docs]</a><span class="k">def</span> <span class="nf">get_line_set_from_room_limit_points</span><span class="p">(</span>
+        <span class="n">limit_points</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                                      <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span>
+                    <span class="n">color</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span> <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">LineSet</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the set of lines that draw the cuboid of the room limit points.</span>
+
+<span class="sd">    :param limit_points: The points that limit the room and form a cuboid.</span>
+<span class="sd">    :type limit_points: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float],</span>
+<span class="sd">                                      Tuple[float, float, float], Tuple[float, float, float]]]</span>
+<span class="sd">    :param color: Color of the lines, defaults to red, parameter value is (1, 0, 0).</span>
+<span class="sd">    :type color: Optional[Tuple[float, float, float]]</span>
+<span class="sd">    :return: A set of lines that draw a cuboid.</span>
+<span class="sd">    :rtype: o3d.geometry.LineSet</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points = findroom.find_limit_points_from_room_planes(room_planes)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points</span>
+<span class="sd">        {&#39;ceiling&#39;: ((-2.659084167584312, 1.663165942978962, -12.059679580097264),</span>
+<span class="sd">        (0.04595579610447797, 1.7270522547819955, -5.768675983794973),</span>
+<span class="sd">        (-6.274718120791219, 1.6609373095351838, -3.0201432659553724),</span>
+<span class="sd">        (-9.109512043352122, 1.5932584443969449, -9.765668008237839)),</span>
+<span class="sd">        &#39;floor&#39;: ((-2.565693580945881, -1.5989279880871063, -12.080538184884569),</span>
+<span class="sd">        (0.13783230321479978, -1.633257582540433, -5.800215740209161),</span>
+<span class="sd">        (-6.337506317681437, -1.6103617016636906, -2.9846542023329574),</span>
+<span class="sd">        (-9.17057479435457, -1.5738354771285867, -9.731963293688295))}</span>
+<span class="sd">        &gt;&gt;&gt; line_set = findroom.get_line_set_from_room_limit_points(limit_points)</span>
+<span class="sd">        &gt;&gt;&gt; line_set</span>
+<span class="sd">        LineSet with 12 lines.</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([pcd, line_set])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">color</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">points_ceiling</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">point</span><span class="p">)</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]]</span>
+    <span class="n">points_floor</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">point</span><span class="p">)</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]]</span>
+    <span class="n">points_room</span> <span class="o">=</span> <span class="n">points_ceiling</span> <span class="o">+</span> <span class="n">points_floor</span>
+    <span class="k">return</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_line_set_from_cuboid_points</span><span class="p">(</span><span class="n">points_room</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="find_limit_points_from_room_planes"><a class="viewcode-back" href="../api/findroom.find_limit_points_from_room_planes.html#findroom.find_limit_points_from_room_planes">[docs]</a><span class="k">def</span> <span class="nf">find_limit_points_from_room_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]])</span> <span class="o">-&gt;</span> \
+        <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the eight points that mark the limits of the room. It returns a dictionary with two entries:</span>
+<span class="sd">    &quot;floor&quot; and &quot;ceiling&quot;, each of them with four points, corresponding to the limit points of the floor</span>
+<span class="sd">    or the ceiling, respectively.</span>
+
+<span class="sd">    :param dict_planes: The planes that delimit the room.</span>
+<span class="sd">    :type dict_planes: Dict[str, Type[plane.PlaneIndoor]])</span>
+<span class="sd">    :return: A dictionary with two entries, &quot;ceiling&quot; and &quot;floor&quot;, where each entry has four points.</span>
+<span class="sd">    :rtype: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float],</span>
+<span class="sd">                        Tuple[float, float, float], Tuple[float, float, float]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points = findroom.find_limit_points_from_room_planes(room_planes)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points</span>
+<span class="sd">        {&#39;ceiling&#39;: ((-2.659084167584312, 1.663165942978962, -12.059679580097264),</span>
+<span class="sd">        (0.04595579610447797, 1.7270522547819955, -5.768675983794973),</span>
+<span class="sd">        (-6.274718120791219, 1.6609373095351838, -3.0201432659553724),</span>
+<span class="sd">        (-9.109512043352122, 1.5932584443969449, -9.765668008237839)),</span>
+<span class="sd">        &#39;floor&#39;: ((-2.565693580945881, -1.5989279880871063, -12.080538184884569),</span>
+<span class="sd">        (0.13783230321479978, -1.633257582540433, -5.800215740209161),</span>
+<span class="sd">        (-6.337506317681437, -1.6103617016636906, -2.9846542023329574),</span>
+<span class="sd">        (-9.17057479435457, -1.5738354771285867, -9.731963293688295))}</span>
+<span class="sd">        &gt;&gt;&gt; line_set = findroom.get_line_set_from_room_limit_points(limit_points)</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([pcd, line_set])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dict_limit_points</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">limit_ceiling_1</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                        <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">])</span>
+    <span class="n">limit_ceiling_2</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                        <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">])</span>
+    <span class="n">limit_ceiling_3</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                        <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">])</span>
+    <span class="n">limit_ceiling_4</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                        <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">])</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_ceiling_1</span><span class="p">,</span> <span class="n">limit_ceiling_2</span><span class="p">,</span> <span class="n">limit_ceiling_3</span><span class="p">,</span> <span class="n">limit_ceiling_4</span><span class="p">)</span>
+    <span class="n">limit_floor_1</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                      <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">])</span>
+    <span class="n">limit_floor_2</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                      <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">])</span>
+    <span class="n">limit_floor_3</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                      <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">])</span>
+    <span class="n">limit_floor_4</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_intersection_of_three_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                      <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">])</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_floor_1</span><span class="p">,</span> <span class="n">limit_floor_2</span><span class="p">,</span> <span class="n">limit_floor_3</span><span class="p">,</span> <span class="n">limit_floor_4</span><span class="p">)</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_ceiling_1</span><span class="p">,</span> <span class="n">limit_ceiling_2</span><span class="p">,</span> <span class="n">limit_floor_1</span><span class="p">,</span> <span class="n">limit_floor_2</span><span class="p">)</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_ceiling_3</span><span class="p">,</span> <span class="n">limit_ceiling_4</span><span class="p">,</span> <span class="n">limit_floor_3</span><span class="p">,</span> <span class="n">limit_floor_4</span><span class="p">)</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_ceiling_1</span><span class="p">,</span> <span class="n">limit_ceiling_4</span><span class="p">,</span> <span class="n">limit_floor_1</span><span class="p">,</span> <span class="n">limit_floor_4</span><span class="p">)</span>
+    <span class="n">dict_limit_points</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit_ceiling_2</span><span class="p">,</span> <span class="n">limit_ceiling_3</span><span class="p">,</span> <span class="n">limit_floor_2</span><span class="p">,</span> <span class="n">limit_floor_3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dict_limit_points</span></div>
+
+<span class="c1">#@profile</span>
+<div class="viewcode-block" id="find_room_planes_in_hololens_pointcloud"><a class="viewcode-back" href="../api/findroom.find_room_planes_in_hololens_pointcloud.html#findroom.find_room_planes_in_hololens_pointcloud">[docs]</a><span class="k">def</span> <span class="nf">find_room_planes_in_hololens_pointcloud</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                                            <span class="n">y_ceiling_floor</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                            <span class="n">distance_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+                                            <span class="n">ransac_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+                                            <span class="n">num_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+                                            <span class="n">max_planes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+                                            <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+                                            <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the room planes in a pointcloud. It returns None if no room is found. The dict entries are:</span>
+<span class="sd">    &quot;ceiling&quot;, &quot;floor&quot;, &quot;wall_1_1&quot;, &quot;wall_1_2&quot;, &quot;wall_2_1&quot;, &quot;wall_2_2&quot;. Wall_1_1 and wall_1_2 are</span>
+<span class="sd">    parallel to each other, likewise for wall_2_1 and wall_2_2. Wall_1_1 and wall_1_2</span>
+<span class="sd">    are perpendicular to wall_2_1 and wall_2_2.</span>
+
+<span class="sd">    :param pcd: Pointcloud where the room should be located.</span>
+<span class="sd">    :type pcd: o3d.geometry.PointCloud</span>
+<span class="sd">    :param distance_threshold: Maximum distance from the plane model, default is 0.01.</span>
+<span class="sd">    :type distance_threshold: float</span>
+<span class="sd">    :param ransac_n: Minimum number of points for a plane, default is 3.</span>
+<span class="sd">    :type ransac_n: int</span>
+<span class="sd">    :param num_iterations: Maximum number of iterations in the RANSAC method, default is 1000.</span>
+<span class="sd">    :type num_iterations: int</span>
+<span class="sd">    :param max_planes: Maximum number of planes to search for, default is 15.</span>
+<span class="sd">    :type max_planes: int</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance for parallel and perpendicular condition, default is 10 degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :param debug: if debug information is shown, default is False.</span>
+<span class="sd">    :type debug: bool</span>
+<span class="sd">    :return: Room planes if found, None otherwise.</span>
+<span class="sd">    :rtype: Optional[Dict[str, Tuple[float, float, float, float]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes</span>
+<span class="sd">        {&#39;ceiling&#39;: array([-9.27806923e-03,  9.99956900e-01,  3.40712719e-04, -1.71247288e+00]),</span>
+<span class="sd">        &#39;floor&#39;: array([1.33089689e-03, 9.99997699e-01, 1.68252695e-03, 1.62352110e+00]),</span>
+<span class="sd">        &#39;wall_1_1&#39;: array([ 0.38325152, -0.03832315,  0.92284864, 12.17910712]),</span>
+<span class="sd">        &#39;wall_1_2&#39;: array([0.37658693, 0.03685206, 0.925648  , 5.23732535]),</span>
+<span class="sd">        &#39;wall_2_1&#39;: array([ 0.92027216,  0.04608669, -0.38855523, -2.28982772]),</span>
+<span class="sd">        &#39;wall_2_2&#39;: array([ 0.9197419 , -0.01003106, -0.39239548,  4.60987813])}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">current_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">pcd</span><span class="p">)</span>
+    <span class="n">num_current_iterations</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="n">list_inlier_clouds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">list_outlier_clouds_files</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">y_ceiling_floor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">y_ceiling</span> <span class="o">=</span> <span class="n">y_ceiling_floor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">y_floor</span> <span class="o">=</span> <span class="n">y_ceiling_floor</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">list_planes</span> <span class="o">=</span> <span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">y_ceiling</span><span class="p">)),</span> <span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">y_floor</span><span class="p">))]</span>
+
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">list_planes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">room_planes</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># first we extract six planes, the minimum</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_pcd</span><span class="o">.</span><span class="n">points</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">ransac_n</span> <span class="ow">and</span> <span class="n">num_current_iterations</span> <span class="o">&lt;=</span> <span class="n">max_planes</span> <span class="ow">and</span> <span class="n">room_planes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Current PCD points: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">current_pcd</span><span class="o">.</span><span class="n">points</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">plane_model</span><span class="p">,</span> <span class="n">inliers</span> <span class="o">=</span> <span class="n">current_pcd</span><span class="o">.</span><span class="n">segment_plane</span><span class="p">(</span><span class="n">distance_threshold</span><span class="o">=</span><span class="n">distance_threshold</span><span class="p">,</span>
+                                                         <span class="n">ransac_n</span><span class="o">=</span><span class="n">ransac_n</span><span class="p">,</span>
+                                                         <span class="n">num_iterations</span><span class="o">=</span><span class="n">num_iterations</span><span class="p">)</span>
+        <span class="n">list_planes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">(</span><span class="n">plane_model</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Plane equation: </span><span class="si">{</span><span class="n">plane_model</span><span class="o">.</span><span class="n">A</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">x + </span><span class="si">{</span><span class="n">plane_model</span><span class="o">.</span><span class="n">B</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">y + </span><span class="si">{</span><span class="n">plane_model</span><span class="o">.</span><span class="n">C</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">z + </span><span class="si">{</span><span class="n">plane_model</span><span class="o">.</span><span class="n">D</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> = 0&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of points in the above plane: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">inliers</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="n">inlier_cloud</span> <span class="o">=</span> <span class="n">current_pcd</span><span class="o">.</span><span class="n">select_by_index</span><span class="p">(</span><span class="n">inliers</span><span class="p">)</span>
+            <span class="n">inlier_cloud_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;/tmp/inlier_</span><span class="si">{</span><span class="n">num_current_iterations</span><span class="o">-</span><span class="mi">1</span><span class="si">}</span><span class="s2">.pcd&quot;</span>
+            <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">inlier_cloud_file</span><span class="p">,</span> <span class="n">inlier_cloud</span><span class="p">)</span>
+            <span class="n">list_inlier_clouds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inlier_cloud</span><span class="p">)</span>
+        <span class="n">outlier_cloud</span> <span class="o">=</span> <span class="n">current_pcd</span><span class="o">.</span><span class="n">select_by_index</span><span class="p">(</span><span class="n">inliers</span><span class="p">,</span> <span class="n">invert</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="n">outlier_cloud_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;/tmp/outlier_</span><span class="si">{</span><span class="n">num_current_iterations</span> <span class="o">-</span> <span class="mi">1</span><span class="si">}</span><span class="s2">.pcd&quot;</span>
+            <span class="n">o3d</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">write_point_cloud</span><span class="p">(</span><span class="n">outlier_cloud_file</span><span class="p">,</span> <span class="n">outlier_cloud</span><span class="p">)</span>
+            <span class="n">list_outlier_clouds_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">outlier_cloud_file</span><span class="p">)</span>
+        <span class="n">current_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">outlier_cloud</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">list_planes</span><span class="p">)</span>
+        <span class="n">room_planes</span> <span class="o">=</span> <span class="n">find_room_planes</span><span class="p">(</span><span class="n">list_planes</span><span class="p">,</span> <span class="n">max_tolerance_degrees</span><span class="o">=</span><span class="n">max_tolerance_degrees</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">num_current_iterations</span><span class="p">)</span>
+        <span class="n">num_current_iterations</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">room_planes</span></div>
+
+<div class="viewcode-block" id="get_negative_of_room_limits"><a class="viewcode-back" href="../api/findroom.get_negative_of_room_limits.html#findroom.get_negative_of_room_limits">[docs]</a><span class="k">def</span> <span class="nf">get_negative_of_room_limits</span><span class="p">(</span><span class="n">room_limits</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">],</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span><span class="p">,</span>
+                                <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span> <span class="n">color</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    :param room_limits:</span>
+<span class="sd">    :return:</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; inside_room, raw_limits_room, limits_room, plane_models = findroom.find_room_in_hololens_pointcloud(pcd, distance_threshold=0.05, plane_thickness= 0.05)</span>
+<span class="sd">        &gt;&gt;&gt; dict_negatives = findroom.get_negative_of_room_limits(limits_room)</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([dict_negatives[&quot;ceiling&quot;], dict_negatives[&quot;floor&quot;], dict_negatives[&quot;wall_1_1&quot;], dict_negatives[&quot;wall_1_2&quot;], dict_negatives[&quot;wall_2_1&quot;], dict_negatives[&quot;wall_2_2&quot;]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dict_negatives</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="n">dict_negatives</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_negative_of_pointcloud</span><span class="p">(</span><span class="n">room_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">],</span> <span class="n">size</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dict_negatives</span></div>
+
+<div class="viewcode-block" id="get_raw_limits_in_order"><a class="viewcode-back" href="../api/findroom.get_raw_limits_in_order.html#findroom.get_raw_limits_in_order">[docs]</a><span class="k">def</span> <span class="nf">get_raw_limits_in_order</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+                            <span class="n">plane_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span> <span class="n">precise</span> <span class="o">=</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">]:</span>
+    <span class="n">dict_raw_limits</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">precise</span> <span class="o">==</span> <span class="s2">&quot;wall_2_1&quot;</span><span class="p">:</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># second, the first pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># third, the second pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">precise</span> <span class="o">==</span> <span class="s2">&quot;wall_1_1&quot;</span><span class="p">:</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># second, the first pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># third, the second pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">precise</span> <span class="o">==</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># second, the first pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+        <span class="n">next_pcd</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">])</span>
+        <span class="c1"># third, the second pair of walls</span>
+        <span class="n">dict_clouds</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness</span><span class="p">(</span><span class="n">next_pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">dict_planes</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span>
+                                                                                                          <span class="n">plane_thickness</span><span class="p">)</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_1&quot;</span><span class="p">])</span>
+        <span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;in_plane_2&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">dict_clouds</span><span class="p">[</span><span class="s2">&quot;middle&quot;</span><span class="p">],</span> <span class="n">dict_raw_limits</span></div>
+
+
+<span class="c1"># return the middle (inside) of the room</span>
+<span class="c1">#@profile</span>
+<div class="viewcode-block" id="find_room_in_hololens_pointcloud"><a class="viewcode-back" href="../api/findroom.find_room_in_hololens_pointcloud.html#findroom.find_room_in_hololens_pointcloud">[docs]</a><span class="k">def</span> <span class="nf">find_room_in_hololens_pointcloud</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                                     <span class="n">y_ceiling_floor</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                     <span class="n">given_planes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                     <span class="n">distance_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+                                     <span class="n">ransac_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+                                     <span class="n">num_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+                                     <span class="n">max_planes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span><span class="p">,</span>
+                                     <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+                                     <span class="n">plane_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span> <span class="n">precise</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">,</span> <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Tuple</span><span class="p">[</span>
+            <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the inside of a room in the HOLOLENS pointcloud. It also returns a dictionary with the</span>
+<span class="sd">    pointclouds that surround the room. The pointclouds are addressed as &quot;ceiling&quot;, &quot;floor&quot;, &quot;wall_1_1&quot;,</span>
+<span class="sd">    &quot;wall_1_2&quot;, &quot;wall_2_1&quot; and &quot;wall_2_2&quot;, and the room planes as well. This pointclouds could be bigger than</span>
+<span class="sd">    the real limits, due to RANSAC adding points beyond the room. Therefore, there are two dictionaries: the first one</span>
+<span class="sd">    is the here defined, and the second one is after constraining to the convex hull of the eight points</span>
+<span class="sd">    where the six planes intersect.</span>
+
+<span class="sd">    :param pcd: Pointcloud where the room should be located.</span>
+<span class="sd">    :type pcd: o3d.geometry.PointCloud</span>
+<span class="sd">    :param distance_threshold: Maximum distance from the plane model, default is 0.01.</span>
+<span class="sd">    :type distance_threshold: float</span>
+<span class="sd">    :param ransac_n: Minimum number of points for a plane, default is 3.</span>
+<span class="sd">    :type ransac_n: int</span>
+<span class="sd">    :param num_iterations: Maximum number of iterations in the RANSAC method, default is 1000.</span>
+<span class="sd">    :type num_iterations: int</span>
+<span class="sd">    :param max_planes: Maximum number of planes to search for, default is 15.</span>
+<span class="sd">    :type max_planes: int</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance for parallel and perpendicular condition, default is 10 degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :param plane_thickness: Maximum distance to the plane, default is 0.05.</span>
+<span class="sd">    :type plane_thickness: float</span>
+<span class="sd">    :return: The inside room and a dictionary with the six point clouds that delimit it, as well as the plane models.</span>
+<span class="sd">    :rtype: Tuple[o3d.geometry.PointCloud, Dict[str, o3d.geometry.PointCloud], Dict[str, o3d.geometry.PointCloud], Dict[str, Tuple[float, float, float, float]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; inside_room, raw_limits_room, limits_room, plane_models = findroom.find_room_in_hololens_pointcloud(pcd, distance_threshold=0.05, plane_thickness= 0.05)</span>
+<span class="sd">        &gt;&gt;&gt; inside_room</span>
+<span class="sd">        PointCloud with 159002 points.</span>
+<span class="sd">        &gt;&gt;&gt; limits_room</span>
+<span class="sd">        {&#39;ceiling&#39;: PointCloud with 44070 points.,</span>
+<span class="sd">        &#39;floor&#39;: PointCloud with 254870 points.,</span>
+<span class="sd">        &#39;wall_1_1&#39;: PointCloud with 82133 points.,</span>
+<span class="sd">        &#39;wall_1_2&#39;: PointCloud with 61470 points.,</span>
+<span class="sd">        &#39;wall_2_1&#39;: PointCloud with 26954 points.,</span>
+<span class="sd">        &#39;wall_2_2&#39;: PointCloud with 63098 points.}</span>
+<span class="sd">        &gt;&gt;&gt; plane_models</span>
+<span class="sd">        {&#39;ceiling&#39;: array([-0.01165034,  0.99701198, -0.07636349, -2.14752472]),</span>
+<span class="sd">        &#39;floor&#39;: array([0.00290915, 0.99999014, 0.0033559 , 1.64111861]),</span>
+<span class="sd">        &#39;wall_1_1&#39;: array([ 0.91992695,  0.01246937, -0.39189147, -2.36333332]),</span>
+<span class="sd">        &#39;wall_1_2&#39;: array([ 0.91880986, -0.0078184 , -0.39462299,  4.58650518]),</span>
+<span class="sd">        &#39;wall_2_1&#39;: array([ 0.34378658,  0.10654374,  0.93298404, 12.13518052]),</span>
+<span class="sd">        &#39;wall_2_2&#39;: array([0.39340657, 0.01036559, 0.91930617, 5.26312062])}</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([inside_room])</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([raw_limits_room[&quot;ceiling&quot;], raw_limits_room[&quot;floor&quot;], raw_limits_room[&quot;wall_1_1&quot;], raw_limits_room[&quot;wall_1_2&quot;], raw_limits_room[&quot;wall_2_1&quot;], raw_limits_room[&quot;wall_2_2&quot;]])</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([limits_room[&quot;ceiling&quot;], limits_room[&quot;floor&quot;], limits_room[&quot;wall_1_1&quot;], limits_room[&quot;wall_1_2&quot;], limits_room[&quot;wall_2_1&quot;], limits_room[&quot;wall_2_2&quot;]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">given_planes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dict_planes</span> <span class="o">=</span> <span class="n">given_planes</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dict_planes</span> <span class="o">=</span> <span class="n">find_room_planes_in_hololens_pointcloud</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">y_ceiling_floor</span><span class="p">,</span> <span class="n">distance_threshold</span><span class="p">,</span> <span class="n">ransac_n</span><span class="p">,</span>
+                                                          <span class="n">num_iterations</span><span class="p">,</span> <span class="n">max_planes</span><span class="p">,</span>
+                                                          <span class="n">max_tolerance_degrees</span><span class="p">,</span> <span class="n">debug</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dict_planes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">inside_room</span><span class="p">,</span> <span class="n">dict_raw_limits</span> <span class="o">=</span> <span class="n">get_raw_limits_in_order</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">dict_planes</span><span class="p">,</span> <span class="n">plane_thickness</span><span class="p">,</span> <span class="n">precise</span><span class="o">=</span><span class="n">precise</span><span class="p">)</span>
+    <span class="n">limit_points</span> <span class="o">=</span> <span class="n">find_limit_points_from_room_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">)</span>
+    <span class="n">pcd_just_covering_the_inside</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">()</span>
+    <span class="n">eight_limit_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span>
+                          <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+                          <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">]]</span>
+    <span class="n">pcd_just_covering_the_inside</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">utility</span><span class="o">.</span><span class="n">Vector3dVector</span><span class="p">(</span><span class="n">eight_limit_points</span><span class="p">)</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">ConvexHull</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pcd_just_covering_the_inside</span><span class="o">.</span><span class="n">points</span><span class="p">))</span>
+    <span class="n">dict_limits</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_1&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_1_2&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_1&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">dict_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">dict_raw_limits</span><span class="p">[</span><span class="s2">&quot;wall_2_2&quot;</span><span class="p">],</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">inside_room</span><span class="p">,</span> <span class="n">dict_raw_limits</span><span class="p">,</span> <span class="n">dict_limits</span><span class="p">,</span> <span class="n">dict_planes</span></div>
+
+
+<div class="viewcode-block" id="is_potential_ceiling_or_floor"><a class="viewcode-back" href="../api/findroom.is_potential_ceiling_or_floor.html#findroom.is_potential_ceiling_or_floor">[docs]</a><span class="k">def</span> <span class="nf">is_potential_ceiling_or_floor</span><span class="p">(</span><span class="n">plane</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span>
+                                  <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Y&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns True if the plane model is a potential ceiling or floor, False otherwise. It checks if the</span>
+<span class="sd">    plane model is perpendicular to the Y axis up to some tolerance, default is 10 degrees.</span>
+
+<span class="sd">    :param plane: Plane.</span>
+<span class="sd">    :type plane: Type[plane.PlaneIndoor]</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance to perfect alignment in degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :return: True if it is a potential ceiling or floor, False otherwise.</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0, 0, 1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_ceiling_or_floor(plane)</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0, 1, 0, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_ceiling_or_floor(plane)</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0.1, 1, 0.1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_ceiling_or_floor(plane)</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_ceiling_or_floor(plane, max_tolerance_degrees=5)</span>
+<span class="sd">        False</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">max_tolerance_radians</span> <span class="o">=</span> <span class="n">max_tolerance_degrees</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span>
+    <span class="n">plane_angle</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_angle_between_plane_and_axis</span><span class="p">(</span><span class="n">plane</span><span class="p">,</span> <span class="n">axis</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">abs</span><span class="p">((</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="nb">abs</span><span class="p">(</span><span class="n">plane_angle</span><span class="p">))</span> <span class="o">&lt;=</span> <span class="n">max_tolerance_radians</span></div>
+
+
+<div class="viewcode-block" id="is_potential_wall"><a class="viewcode-back" href="../api/findroom.is_potential_wall.html#findroom.is_potential_wall">[docs]</a><span class="k">def</span> <span class="nf">is_potential_wall</span><span class="p">(</span><span class="n">plane</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span>
+                      <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="s2">&quot;Y&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns True if the plane model is a potential wall, False otherwise. It checks if the</span>
+<span class="sd">    plane model is perpendicular to the Y = 0 plane up to some tolerance, default is 10 degrees.</span>
+
+<span class="sd">    :param plane: Plane.</span>
+<span class="sd">    :type plane: Type[plane.PlaneIndoor]</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance to perfect alignment in degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :return: True if it is a potential ceiling or floor, False otherwise.</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0, 1, 0, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_wall(plane)</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0, 0, 1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_wall(plane)</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; plane = plane.PlaneIndoor((0.1, 0.1, 1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_wall(plane)</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; findroom.is_potential_wall(plane, max_tolerance_degrees=5)</span>
+<span class="sd">        False</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_tolerance_radians</span> <span class="o">=</span> <span class="n">max_tolerance_degrees</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span>
+    <span class="n">plane_angle</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_angle_plane_with_plane_axis_equal_0</span><span class="p">(</span><span class="n">plane</span><span class="p">,</span> <span class="n">axis</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">abs</span><span class="p">((</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="nb">abs</span><span class="p">(</span><span class="n">plane_angle</span><span class="p">))</span> <span class="o">&lt;=</span> <span class="n">max_tolerance_radians</span></div>
+
+
+<div class="viewcode-block" id="get_ceiling_and_floor_from_candidates"><a class="viewcode-back" href="../api/findroom.get_ceiling_and_floor_from_candidates.html#findroom.get_ceiling_and_floor_from_candidates">[docs]</a><span class="k">def</span> <span class="nf">get_ceiling_and_floor_from_candidates</span><span class="p">(</span><span class="n">list_planes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]])</span> \
+        <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the best guesses for ceiling and floor from the list of candidates. For each plane model</span>
+<span class="sd">    the point P in the plane closest to the origin is computed. The ceiling is the plane model</span>
+<span class="sd">    with the highest value of the Y coordinate of P. The floor is computed likewise for the lowest value</span>
+<span class="sd">    of the Y coordinate of P. It requires a minimum of two candidates.</span>
+
+<span class="sd">    :param list_planes: List of plane models with floor and ceiling candidates.</span>
+<span class="sd">    :type list_planes: List[Type[plane.PlaneIndoor]]</span>
+<span class="sd">    :return: Dictionary with two keys, &quot;ceiling_model&quot; and &quot;floor_model&quot;.</span>
+<span class="sd">    :rtype: Dict[str, Type[plane.PlaneIndoor]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; plane1 = plane.PlaneIndoor((0, 1, 0, 5))</span>
+<span class="sd">        &gt;&gt;&gt; plane2 = plane.PlaneIndoor((0.1, 3, 0.1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; plane3 = plane.PlaneIndoor((0, 11, 0, 5))</span>
+<span class="sd">        &gt;&gt;&gt; plane4 = plane.PlaneIndoor((0.1, 7, 0.1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; list_planes = [plane1, plane2, plane3, plane4]</span>
+<span class="sd">        &gt;&gt;&gt; dict_models = findroom.get_ceiling_and_floor_from_candidates(list_planes)</span>
+<span class="sd">        &gt;&gt;&gt; dict_models</span>
+<span class="sd">        {&#39;ceiling_model&#39;: (0, 11, 0, 5), &#39;floor_model&#39;: (0, 1, 0, 5)}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">index_ceiling</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">index_floor</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">dist_ceiling</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">dist_floor</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">y_ceiling</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1000</span>
+    <span class="n">y_floor</span> <span class="o">=</span> <span class="mi">1000</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">plane_model</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">list_planes</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_point_on_plane_closest_to_the_origin</span><span class="p">(</span><span class="n">list_planes</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="c1"># print(f&quot;Plane Model: {list_plane_models[index]}\n&quot;)</span>
+        <span class="c1"># print(f&quot;Point points on plane closest to the origin: {N(p)}\n&quot;)</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_distance_between_plane_and_origin</span><span class="p">(</span><span class="n">list_planes</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="c1"># if p[1] &gt;= y_ceiling and d &gt; dist_ceiling:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">y_ceiling</span><span class="p">:</span>
+            <span class="n">index_ceiling</span> <span class="o">=</span> <span class="n">index</span>
+            <span class="n">dist_ceiling</span> <span class="o">=</span> <span class="n">d</span>
+            <span class="n">y_ceiling</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># if p[1] &lt; y_floor and d &gt; dist_floor:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">y_floor</span><span class="p">:</span>
+            <span class="n">index_floor</span> <span class="o">=</span> <span class="n">index</span>
+            <span class="n">dist_floor</span> <span class="o">=</span> <span class="n">d</span>
+            <span class="n">y_floor</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;ceiling_model&quot;</span><span class="p">:</span> <span class="n">list_planes</span><span class="p">[</span><span class="n">index_ceiling</span><span class="p">],</span> <span class="s2">&quot;floor_model&quot;</span><span class="p">:</span> <span class="n">list_planes</span><span class="p">[</span><span class="n">index_floor</span><span class="p">]}</span></div>
+
+
+<span class="c1"># check if walls are parallel to each other in pairs and return the four walls</span>
+<span class="c1"># TODO check minimum distances between parallel walls.</span>
+<div class="viewcode-block" id="return_four_walls_from_candidates"><a class="viewcode-back" href="../api/findroom.return_four_walls_from_candidates.html#findroom.return_four_walls_from_candidates">[docs]</a><span class="k">def</span> <span class="nf">return_four_walls_from_candidates</span><span class="p">(</span><span class="n">list_planes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]],</span>
+                                      <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span>
+                       <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a list of plane models candidates to walls, it extracts four of them, such that the first</span>
+<span class="sd">    and second are parallel, the third and four as well, and these two pairs are perpendicular to</span>
+<span class="sd">    each other. If no candidates under these conditions are found, it returns None.</span>
+
+<span class="sd">    :param list_planes: List of all the candidate plane for potential walls.</span>
+<span class="sd">    :type list_planes: List[Type[plane.PlaneIndoor]]</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance for parallel and perpendicular conditions, default to 10 degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :param debug: if debug information is shown, default is False.</span>
+<span class="sd">    :type debug: bool</span>
+<span class="sd">    :return: The four walls.</span>
+<span class="sd">    :rtype: Optional[Tuple[Type[plane.PlaneIndoor], Type[plane.PlaneIndoor],</span>
+<span class="sd">                       Type[plane.PlaneIndoor], Type[plane.PlaneIndoor]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; p1 = plane.PlaneIndoor((1, 2, 3, 4))</span>
+<span class="sd">        &gt;&gt;&gt; p2 = plane.PlaneIndoor((3, 6.1, 9.2, 12))</span>
+<span class="sd">        &gt;&gt;&gt; p3 = plane.PlaneIndoor((3, 1, -1.67, 10))</span>
+<span class="sd">        &gt;&gt;&gt; p4 = plane.PlaneIndoor((6.1, 2.1, -3.34, -35))</span>
+<span class="sd">        &gt;&gt;&gt; p5 = plane.PlaneIndoor((-6.33, 10.67, -5, 0))</span>
+<span class="sd">        &gt;&gt;&gt; p6 = plane.PlaneIndoor((-6.33, 10.67, -5, 15))</span>
+<span class="sd">        &gt;&gt;&gt; p7 = plane.PlaneIndoor((1, 1, 1, 17))</span>
+<span class="sd">        &gt;&gt;&gt; p8 = plane.PlaneIndoor((-1, -67, 567, 12))</span>
+<span class="sd">        &gt;&gt;&gt; list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]</span>
+<span class="sd">        &gt;&gt;&gt; findroom.return_four_walls_from_candidates(list_planes)</span>
+<span class="sd">        ((1, 2, 3, 4), (3, 6.1, 9.2, 12), (-6.33, 10.67, -5, 15), (-6.33, 10.67, -5, 0))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># we have to find a set of four such that there are two pairs of parallel planes</span>
+    <span class="c1"># it is kind of finding equivalence classes</span>
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Entering in return_four_walls&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">list_planes</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+
+    <span class="n">list_of_parallel_classes</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_partition_of_list_of_planes_by_parallelism</span><span class="p">(</span><span class="n">list_planes</span><span class="p">,</span> <span class="n">max_tolerance_degrees</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">parallel_class</span> <span class="ow">in</span> <span class="n">list_of_parallel_classes</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Parallel class:&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">parallel_class</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+
+    <span class="c1"># remove parallel classes with less than two elements</span>
+    <span class="n">list_of_parallel_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">parallel_class</span> <span class="k">for</span> <span class="n">parallel_class</span> <span class="ow">in</span> <span class="n">list_of_parallel_classes</span>
+                                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parallel_class</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_of_parallel_classes</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="c1"># now find the first two classes that are perpendicular to each other</span>
+    <span class="n">perpendicular_classes</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">get_lists_of_planes_perpendicular_to_each_other_in_partition_first_two</span><span class="p">(</span>
+        <span class="n">list_of_parallel_classes</span><span class="p">,</span>
+        <span class="n">max_tolerance_degrees</span><span class="o">=</span><span class="n">max_tolerance_degrees</span><span class="p">,</span>
+        <span class="n">min_percentage</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">perpendicular_classes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">perpendicular_classes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">perpendicular_classes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> \
+           <span class="n">perpendicular_classes</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">perpendicular_classes</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span></div>
+
+
+<span class="c1"># check if the list of plane_models define a room, and return the ceiling, floor and four walls</span>
+<div class="viewcode-block" id="find_room_planes"><a class="viewcode-back" href="../api/findroom.find_room_planes.html#findroom.find_room_planes">[docs]</a><span class="k">def</span> <span class="nf">find_room_planes</span><span class="p">(</span><span class="n">planes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]],</span>
+                     <span class="n">max_tolerance_degrees</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">minimum_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">,</span>
+                     <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the ceiling, floor and four walls plane models corresponding to a room from a list of plane</span>
+<span class="sd">    models. It supposes that the ceiling is +Y. The room has to be wider than *minimum_distance* from</span>
+<span class="sd">    wall to wall (or ceiling to floor). These distances are computed from the limit points of the room,</span>
+<span class="sd">    as the planes ar enot going to be exactly parallel. If no good candidates are found it returns None.</span>
+<span class="sd">    The dict entries are: &quot;ceiling&quot;, &quot;floor&quot;, &quot;wall_1_1&quot;, &quot;wall_1_2&quot;, &quot;wall_2_1&quot;, &quot;wall_2_2&quot;. Wall_1_1 and</span>
+<span class="sd">    wall_1_2 are parallel to each other, likewise for wall_2_1 and wall_2_2. Wall_1_1 and wall_1_2</span>
+<span class="sd">    are perpendicular to wall_2_1 and wall_2_2.</span>
+
+<span class="sd">    :param planes: List of plane models from which extract the room.</span>
+<span class="sd">    :type planes: List[Type[plane.PlaneIndoor]]</span>
+<span class="sd">    :param max_tolerance_degrees: Tolerance for parallel and perpendicular conditions, default is 10 degrees.</span>
+<span class="sd">    :type max_tolerance_degrees: float</span>
+<span class="sd">    :param minimum_distance: Minimum distance between the walls of the room. Default value is 2.0.</span>
+<span class="sd">    :type minimum_distance: float</span>
+<span class="sd">    :param debug: if debug information is shown, default is False.</span>
+<span class="sd">    :type debug: bool</span>
+<span class="sd">    :return: Dictionary with ceiling, floor and walls plane models. None if no suitable candidates are found. The keys are &quot;ceiling&quot;, &quot;floor&quot;, &quot;wall_1_1&quot;, &quot;wall_1_2&quot;, &quot;wall_2_1&quot;, &quot;wall_2_2&quot;.</span>
+<span class="sd">    :rtype: Optional[Dict[str, Type[plane.PlaneIndoor]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; p1 = plane.PlaneIndoor((1, 2, 3, 4))</span>
+<span class="sd">        &gt;&gt;&gt; p2 = plane.PlaneIndoor((3, 6.1, 9.2, 12))</span>
+<span class="sd">        &gt;&gt;&gt; p3 = plane.PlaneIndoor((3, 1, -1.67, 10))</span>
+<span class="sd">        &gt;&gt;&gt; p4 = plane.PlaneIndoor((6.1, 2.1, -3.34, -35))</span>
+<span class="sd">        &gt;&gt;&gt; p5 = plane.PlaneIndoor((-6.33, 10.67, -5, 0))</span>
+<span class="sd">        &gt;&gt;&gt; p6 = plane.PlaneIndoor((-6.33, 10.67, -5, 15))</span>
+<span class="sd">        &gt;&gt;&gt; p7 = plane.PlaneIndoor((1, 1, 1, 17))</span>
+<span class="sd">        &gt;&gt;&gt; p8 = plane.PlaneIndoor((-1, -67, 567, 12))</span>
+<span class="sd">        &gt;&gt;&gt; list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes(list_plane_models)</span>
+<span class="sd">        &gt;&gt;&gt; type(room_planes)</span>
+<span class="sd">        &lt;class &#39;NoneType&#39;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; p1 = plane.PlaneIndoor((0, 2, 0, 4))</span>
+<span class="sd">        &gt;&gt;&gt; p2 = plane.PlaneIndoor((0.1, 3.1, 0.1, -10))</span>
+<span class="sd">        &gt;&gt;&gt; p3 = plane.PlaneIndoor((3, 0, 0, 10))</span>
+<span class="sd">        &gt;&gt;&gt; p4 = plane.PlaneIndoor((6, 0.1, -0.2, -35))</span>
+<span class="sd">        &gt;&gt;&gt; p5 = plane.PlaneIndoor((0, 0, -5, 0))</span>
+<span class="sd">        &gt;&gt;&gt; p6 = plane.PlaneIndoor((1, 0.3, 35, 15))</span>
+<span class="sd">        &gt;&gt;&gt; p7 = plane.PlaneIndoor((1, 1, 1, 17))</span>
+<span class="sd">        &gt;&gt;&gt; p8 = plane.PlaneIndoor((-1, -67, 567, 12))</span>
+<span class="sd">        &gt;&gt;&gt; list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes(list_plane_models)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes</span>
+<span class="sd">        {&#39;ceiling&#39;: (0.1, 3.1, 0.1, -10), &#39;floor&#39;: (0, 2, 0, 4), &#39;wall_1_1&#39;: (-1, -67, 567, 12), &#39;wall_1_2&#39;: (1, 0.3, 35, 15), &#39;wall_2_1&#39;: (6, 0.1, -0.2, -35), &#39;wall_2_2&#39;: (3, 0, 0, 10)}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">planes</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">list_potential_ceiling_or_floor</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_potential_walls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">planes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_potential_ceiling_or_floor</span><span class="p">(</span><span class="n">plane</span><span class="p">,</span> <span class="n">max_tolerance_degrees</span><span class="o">=</span><span class="n">max_tolerance_degrees</span><span class="p">):</span>
+            <span class="n">list_potential_ceiling_or_floor</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">is_potential_wall</span><span class="p">(</span><span class="n">plane</span><span class="p">,</span> <span class="n">max_tolerance_degrees</span><span class="o">=</span><span class="n">max_tolerance_degrees</span><span class="p">):</span>
+            <span class="n">list_potential_walls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_potential_ceiling_or_floor</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_potential_walls</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">dict_models</span> <span class="o">=</span> \
+        <span class="n">get_ceiling_and_floor_from_candidates</span><span class="p">(</span><span class="n">list_potential_ceiling_or_floor</span><span class="p">)</span>
+    <span class="n">ceiling_model</span> <span class="o">=</span> <span class="n">dict_models</span><span class="p">[</span><span class="s2">&quot;ceiling_model&quot;</span><span class="p">]</span>
+    <span class="n">floor_model</span> <span class="o">=</span> <span class="n">dict_models</span><span class="p">[</span><span class="s2">&quot;floor_model&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;list_potential_ceiling_or_floor&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">list_potential_ceiling_or_floor</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Ceiling:&quot;</span><span class="p">,</span> <span class="n">ceiling_model</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Floor:&quot;</span><span class="p">,</span> <span class="n">floor_model</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;list_potential_walls&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">plane</span> <span class="ow">in</span> <span class="n">list_potential_walls</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">plane</span><span class="p">)</span>
+    <span class="n">walls</span> <span class="o">=</span> <span class="n">return_four_walls_from_candidates</span><span class="p">(</span><span class="n">list_potential_walls</span><span class="p">,</span> <span class="n">max_tolerance_degrees</span><span class="o">=</span><span class="n">max_tolerance_degrees</span><span class="p">,</span>
+                                              <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">walls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Plane ceiling found&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">ceiling_model</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Plane floor found&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">floor_model</span><span class="p">)</span>
+    <span class="n">dict_planes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="n">ceiling_model</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">:</span> <span class="n">floor_model</span><span class="p">,</span> <span class="s2">&quot;wall_1_1&quot;</span><span class="p">:</span> <span class="n">walls</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;wall_1_2&quot;</span><span class="p">:</span> <span class="n">walls</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                   <span class="s2">&quot;wall_2_1&quot;</span><span class="p">:</span> <span class="n">walls</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="s2">&quot;wall_2_2&quot;</span><span class="p">:</span> <span class="n">walls</span><span class="p">[</span><span class="mi">3</span><span class="p">]}</span>
+    <span class="c1"># check if the room is wide enough</span>
+    <span class="n">limit_points</span> <span class="o">=</span> <span class="n">find_limit_points_from_room_planes</span><span class="p">(</span><span class="n">dict_planes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">is_the_room_wide_enough</span><span class="p">(</span><span class="n">limit_points</span><span class="p">,</span> <span class="n">minimum_distance</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">dict_planes</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="is_the_room_wide_enough"><a class="viewcode-back" href="../api/findroom.is_the_room_wide_enough.html#findroom.is_the_room_wide_enough">[docs]</a><span class="k">def</span> <span class="nf">is_the_room_wide_enough</span><span class="p">(</span><span class="n">limit_points</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span>
+                            <span class="n">minimum_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">ceiling_points</span> <span class="o">=</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span>
+    <span class="n">first_distance_ceiling</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ceiling_points</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ceiling_points</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">second_distance_ceiling</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ceiling_points</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ceiling_points</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+    <span class="n">distance_ceiling_floor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ceiling_points</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">first_distance_ceiling</span> <span class="o">&gt;=</span> <span class="n">minimum_distance</span> <span class="ow">and</span> \
+           <span class="n">second_distance_ceiling</span> <span class="o">&gt;=</span> <span class="n">minimum_distance</span> <span class="ow">and</span> \
+           <span class="n">distance_ceiling_floor</span> <span class="o">&gt;=</span> <span class="n">minimum_distance</span></div>
+
+
+<div class="viewcode-block" id="get_numpy_array_from_limit_points"><a class="viewcode-back" href="../api/findroom.get_numpy_array_from_limit_points.html#findroom.get_numpy_array_from_limit_points">[docs]</a><span class="k">def</span> <span class="nf">get_numpy_array_from_limit_points</span><span class="p">(</span><span class="n">limit_points</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the numpy array consisting of the eight points of *limit_points*, in the same order.</span>
+
+<span class="sd">    :param limit_points: The limit points of a room.</span>
+<span class="sd">    :type limit_points:  Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]]]</span>
+<span class="sd">    :return: The limit points in a numpy array.</span>
+<span class="sd">    :rtype: np.arrays</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points = findroom.find_limit_points_from_room_planes(room_planes)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points</span>
+<span class="sd">        {&#39;ceiling&#39;: ((-2.585664972152478, 1.648248855898352, -12.045802064601098),</span>
+<span class="sd">        (-9.04968448875847, 1.4275304795309494, -9.482337437906097),</span>
+<span class="sd">        (-6.292824877357577, 1.5998825167397532, -3.0435533997041655),</span>
+<span class="sd">        (0.05990474820833932, 1.814499449765199, -5.784498825826017)),</span>
+<span class="sd">        &#39;floor&#39;: ((-2.5758002843819563, -1.590938542863108, -12.151111774606026),</span>
+<span class="sd">        (-9.10383490564883, -1.5914027163048543, -9.555297987573882),</span>
+<span class="sd">        (-6.298988305192846, -1.6104869321951165, -3.000987682956872),</span>
+<span class="sd">        (0.12377556919950411, -1.6094908703176263, -5.769465054182009))}</span>
+<span class="sd">        &gt;&gt;&gt; numpy_points = findroom.get_numpy_array_from_limit_points(limit_points)</span>
+<span class="sd">        &gt;&gt;&gt; numpy_points</span>
+<span class="sd">        array([[ -2.58566497,   1.64824886, -12.04580206],</span>
+<span class="sd">            [ -9.04968449,   1.42753048,  -9.48233744],</span>
+<span class="sd">            [ -6.29282488,   1.59988252,  -3.0435534 ],</span>
+<span class="sd">            [  0.05990475,   1.81449945,  -5.78449883],</span>
+<span class="sd">            [ -2.57580028,  -1.59093854, -12.15111177],</span>
+<span class="sd">            [ -9.10383491,  -1.59140272,  -9.55529799],</span>
+<span class="sd">            [ -6.29898831,  -1.61048693,  -3.00098768],</span>
+<span class="sd">            [  0.12377557,  -1.60949087,  -5.76946505]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span>
+                     <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+                    <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">]])</span></div>
+
+<div class="viewcode-block" id="expand_limit_points"><a class="viewcode-back" href="../api/findroom.expand_limit_points.html#findroom.expand_limit_points">[docs]</a><span class="k">def</span> <span class="nf">expand_limit_points</span><span class="p">(</span><span class="n">limit_points</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span> <span class="n">size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> \
+        <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Expands the limit points outwards, in such a way that the new points are *size* away from the corresponding</span>
+<span class="sd">    original points.</span>
+
+<span class="sd">    :param limit_points: The original limit points.</span>
+<span class="sd">    :type limit_points: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]]]</span>
+<span class="sd">    :param size: The linear size of the outward expansion.</span>
+<span class="sd">    :type size: float</span>
+<span class="sd">    :return: A new dict of limit points.</span>
+<span class="sd">    :rtype: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]]]</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points = findroom.find_limit_points_from_room_planes(room_planes)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points</span>
+<span class="sd">        {&#39;ceiling&#39;: ((-2.585664972152478, 1.648248855898352, -12.045802064601098),</span>
+<span class="sd">        (-9.04968448875847, 1.4275304795309494, -9.482337437906097),</span>
+<span class="sd">        (-6.292824877357577, 1.5998825167397532, -3.0435533997041655),</span>
+<span class="sd">        (0.05990474820833932, 1.814499449765199, -5.784498825826017)),</span>
+<span class="sd">        &#39;floor&#39;: ((-2.5758002843819563, -1.590938542863108, -12.151111774606026),</span>
+<span class="sd">        (-9.10383490564883, -1.5914027163048543, -9.555297987573882),</span>
+<span class="sd">        (-6.298988305192846, -1.6104869321951165, -3.000987682956872),</span>
+<span class="sd">        (0.12377556919950411, -1.6094908703176263, -5.769465054182009))}</span>
+<span class="sd">        &gt;&gt;&gt; new_limit_points = findroom.expand_limit_points(limit_points, 0.1)</span>
+<span class="sd">        {&#39;ceiling&#39;: ((-2.548759669438483, 1.6803939311098945, -12.133006954207314),</span>
+<span class="sd">        (-9.138653759653101, 1.4550220445271118, -9.518788537896897),</span>
+<span class="sd">        (-6.3282154375796535, 1.630653589043257, -2.9552321148603635),</span>
+<span class="sd">        (0.1469263663650855, 1.8491812055463839, -5.7495072012664785)),</span>
+<span class="sd">        &#39;floor&#39;: ((-2.5393076585122065, -1.6218755411966865, -12.238925158501868),</span>
+<span class="sd">        (-9.191666204357292, -1.6217446462056169, -9.592244303453574),</span>
+<span class="sd">        (-6.334158773016039, -1.641588482952323, -2.9126942419003887),</span>
+<span class="sd">        (0.2120085732577106, -1.640646653455662, -5.734191066997115))}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">new_limit_points</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">np_points</span> <span class="o">=</span> <span class="n">get_numpy_array_from_limit_points</span><span class="p">(</span><span class="n">limit_points</span><span class="p">)</span>
+    <span class="n">centroid</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np_points</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="n">new_ceiling_0</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_ceiling_1</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_ceiling_2</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_ceiling_3</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_floor_0</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_floor_1</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_floor_2</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_floor_3</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">get_point_further_along_direction</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][</span><span class="mi">3</span><span class="p">],</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">new_limit_points</span><span class="p">[</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_ceiling_0</span><span class="p">,</span> <span class="n">new_ceiling_1</span><span class="p">,</span> <span class="n">new_ceiling_2</span><span class="p">,</span> <span class="n">new_ceiling_3</span><span class="p">)</span>
+    <span class="n">new_limit_points</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_floor_0</span><span class="p">,</span> <span class="n">new_floor_1</span><span class="p">,</span> <span class="n">new_floor_2</span><span class="p">,</span> <span class="n">new_floor_3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_limit_points</span></div>
+
+<div class="viewcode-block" id="get_inside_list_of_points"><a class="viewcode-back" href="../api/findroom.get_inside_list_of_points.html#findroom.get_inside_list_of_points">[docs]</a><span class="k">def</span> <span class="nf">get_inside_list_of_points</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">list_of_points</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">:</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">ConvexHull</span><span class="p">(</span><span class="n">list_of_points</span><span class="p">)</span>
+    <span class="n">inside_limit_points</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">inside_limit_points</span></div>
+
+<div class="viewcode-block" id="get_inside_limit_points"><a class="viewcode-back" href="../api/findroom.get_inside_limit_points.html#findroom.get_inside_limit_points">[docs]</a><span class="k">def</span> <span class="nf">get_inside_limit_points</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">:</span>  <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                        <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]])</span> <span class="o">-&gt;</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the pointcloud that lies inside some limit points. The typical usage is to extend the limit points</span>
+<span class="sd">    found when searching for the room, in order to try to remove false holes in walls.</span>
+
+<span class="sd">    :param pcd: The original pointcloud.</span>
+<span class="sd">    :type pcd: o3d.geometry.PointCloud</span>
+<span class="sd">    :param limit_points: The limit points that delimit the space the select.</span>
+<span class="sd">    :type limit_points: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]]]</span>
+<span class="sd">    :return: The inside pointcloud.</span>
+<span class="sd">    :rtpye: o3d.geometry.PointCloud</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import findroom</span>
+<span class="sd">        &gt;&gt;&gt; import os</span>
+<span class="sd">        &gt;&gt;&gt; import open3d as o3d</span>
+<span class="sd">        &gt;&gt;&gt; home_dir = os.getenv(&quot;HOME&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_filename = home_dir + &quot;/Lantegi/FEBRERO/Kubic_v2 - e1 - 2021-01-26-102719/voxelized2cm.pcd&quot;</span>
+<span class="sd">        &gt;&gt;&gt; pcd = o3d.io.read_point_cloud(pcd_filename)</span>
+<span class="sd">        &gt;&gt;&gt; room_planes = findroom.find_room_planes_in_hololens_pointcloud(pcd, distance_threshold=0.05)</span>
+<span class="sd">        &gt;&gt;&gt; limit_points = findroom.find_limit_points_from_room_planes(room_planes)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_inside = findroom.get_inside_limit_points(pcd, limit_points)</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([pcd_inside])</span>
+<span class="sd">        &gt;&gt;&gt; new_limit_points = findroom.expand_limit_points(limit_points, 0.5)</span>
+<span class="sd">        &gt;&gt;&gt; pcd_inside_expanded = findroom.get_inside_limit_points(pcd, new_limit_points)</span>
+<span class="sd">        &gt;&gt;&gt; o3d.visualization.draw_geometries([pcd_inside_expanded])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">np_points</span> <span class="o">=</span> <span class="n">get_numpy_array_from_limit_points</span><span class="p">(</span><span class="n">limit_points</span><span class="p">)</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">ConvexHull</span><span class="p">(</span><span class="n">np_points</span><span class="p">)</span>
+    <span class="n">inside_limit_points</span> <span class="o">=</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">get_pointcloud_after_substracting_convex_hull</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">hull</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">inside_limit_points</span></div>
+
+<div class="viewcode-block" id="change_axes_abel_to_axes_hololens"><a class="viewcode-back" href="../api/findroom.change_axes_abel_to_axes_hololens.html#findroom.change_axes_abel_to_axes_hololens">[docs]</a><span class="k">def</span> <span class="nf">change_axes_abel_to_axes_hololens</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">:</span>
+    <span class="n">np_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pcd</span><span class="o">.</span><span class="n">points</span><span class="p">)</span>
+    <span class="n">new_np_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([[</span><span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">np_points</span><span class="p">])</span>
+    <span class="n">pcd_results</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">(</span><span class="n">pcd</span><span class="p">)</span>
+    <span class="n">pcd_results</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">o3d</span><span class="o">.</span><span class="n">utility</span><span class="o">.</span><span class="n">Vector3dVector</span><span class="p">(</span><span class="n">new_np_points</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pcd_results</span></div>
+
+<div class="viewcode-block" id="extract_boundary_slice"><a class="viewcode-back" href="../api/findroom.extract_boundary_slice.html#findroom.extract_boundary_slice">[docs]</a><span class="k">def</span> <span class="nf">extract_boundary_slice</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                           <span class="n">plane</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">],</span>
+                           <span class="n">limit_points</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                                               <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                                               <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+                                               <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+                           <span class="n">plane_thickness</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">:</span>
+    <span class="n">normal_vector</span> <span class="o">=</span> <span class="n">plane</span><span class="o">.</span><span class="n">normal</span>
+    <span class="n">limit_convex_hull</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">normal_vector</span> <span class="o">*</span> <span class="n">plane_thickness</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">limit_points</span><span class="p">:</span>
+        <span class="n">new_point_positive</span> <span class="o">=</span> <span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">size</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">limit_convex_hull</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_point_positive</span><span class="p">)</span>
+        <span class="n">new_point_negative</span> <span class="o">=</span> <span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">point</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">size</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">limit_convex_hull</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_point_negative</span><span class="p">)</span>
+    <span class="n">np_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">limit_convex_hull</span><span class="p">)</span>
+    <span class="c1"># print(limit_convex_hull)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">limit_convex_hull</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># print(np_points)</span>
+    <span class="k">return</span> <span class="n">get_inside_list_of_points</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">np_points</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="extract_boundaries_slices"><a class="viewcode-back" href="../api/findroom.extract_boundaries_slices.html#findroom.extract_boundaries_slices">[docs]</a><span class="k">def</span> <span class="nf">extract_boundaries_slices</span><span class="p">(</span><span class="n">pcd</span><span class="p">:</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">,</span>
+                              <span class="n">planes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Type</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">PlaneIndoor</span><span class="p">]],</span>
+                              <span class="n">plane_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">o3d</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">PointCloud</span><span class="p">]:</span>
+    <span class="n">limit_points</span> <span class="o">=</span> <span class="n">find_limit_points_from_room_planes</span><span class="p">(</span><span class="n">planes</span><span class="p">)</span>
+    <span class="n">slices_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">plane_model</span> <span class="ow">in</span> <span class="n">planes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">slices_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">extract_boundary_slice</span><span class="p">(</span><span class="n">pcd</span><span class="p">,</span> <span class="n">plane_model</span><span class="p">,</span> <span class="n">limit_points</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">plane_thickness</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">slices_dict</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">indoor3d 0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">findroom</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2020, RSAIT.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

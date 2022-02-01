@@ -169,7 +169,7 @@ def get_line_set_from_room_limit_points(
     return pointcloud.get_line_set_from_cuboid_points(points_room, color)
 
 
-def find_limit_points_from_room_planes(dict_planes: Dict[str, Type[plane.PlaneRSAIT]]) -> \
+def find_limit_points_from_room_planes(dict_planes: Dict[str, Type[plane.PlaneIndoor]]) -> \
         Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float],
                         Tuple[float, float, float], Tuple[float, float, float]]]:
     """
@@ -178,7 +178,7 @@ def find_limit_points_from_room_planes(dict_planes: Dict[str, Type[plane.PlaneRS
     or the ceiling, respectively.
 
     :param dict_planes: The planes that delimit the room.
-    :type dict_planes: Dict[str, Type[plane.PlaneRSAIT]])
+    :type dict_planes: Dict[str, Type[plane.PlaneIndoor]])
     :return: A dictionary with two entries, "ceiling" and "floor", where each entry has four points.
     :rtype: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float],
                         Tuple[float, float, float], Tuple[float, float, float]]]
@@ -241,7 +241,7 @@ def find_room_planes_in_hololens_pointcloud(pcd: o3d.geometry.PointCloud,
                                             max_planes: int = 25,
                                             max_tolerance_degrees: float = 10,
                                             debug: bool = False) -> \
-        Optional[Dict[str, Type[plane.PlaneRSAIT]]]:
+        Optional[Dict[str, Type[plane.PlaneIndoor]]]:
     """
     Finds the room planes in a pointcloud. It returns None if no room is found. The dict entries are:
     "ceiling", "floor", "wall_1_1", "wall_1_2", "wall_2_1", "wall_2_2". Wall_1_1 and wall_1_2 are
@@ -292,7 +292,7 @@ def find_room_planes_in_hololens_pointcloud(pcd: o3d.geometry.PointCloud,
     if y_ceiling_floor is not None:
         y_ceiling = y_ceiling_floor[0]
         y_floor = y_ceiling_floor[1]
-        list_planes = [plane.PlaneRSAIT((0, 1, 0, -y_ceiling)), plane.PlaneRSAIT((0, 1, 0, -y_floor))]
+        list_planes = [plane.PlaneIndoor((0, 1, 0, -y_ceiling)), plane.PlaneIndoor((0, 1, 0, -y_floor))]
 
 
     else:
@@ -305,7 +305,7 @@ def find_room_planes_in_hololens_pointcloud(pcd: o3d.geometry.PointCloud,
         plane_model, inliers = current_pcd.segment_plane(distance_threshold=distance_threshold,
                                                          ransac_n=ransac_n,
                                                          num_iterations=num_iterations)
-        list_planes.append(plane.PlaneRSAIT(plane_model))
+        list_planes.append(plane.PlaneIndoor(plane_model))
         if debug:
             print(f"Plane equation: {plane_model.A:.2f}x + {plane_model.B:.2f}y + {plane_model.C:.2f}z + {plane_model.D:.2f} = 0")
             print(f"Number of points in the above plane: {len(inliers)}")
@@ -519,14 +519,14 @@ def find_room_in_hololens_pointcloud(pcd: o3d.geometry.PointCloud,
     return inside_room, dict_raw_limits, dict_limits, dict_planes
 
 
-def is_potential_ceiling_or_floor(plane: Type[plane.PlaneRSAIT],
+def is_potential_ceiling_or_floor(plane: Type[plane.PlaneIndoor],
                                   max_tolerance_degrees: float = 10, axis: str = "Y") -> bool:
     """
     Returns True if the plane model is a potential ceiling or floor, False otherwise. It checks if the
     plane model is perpendicular to the Y axis up to some tolerance, default is 10 degrees.
 
     :param plane: Plane.
-    :type plane: Type[plane.PlaneRSAIT]
+    :type plane: Type[plane.PlaneIndoor]
     :param max_tolerance_degrees: Tolerance to perfect alignment in degrees.
     :type max_tolerance_degrees: float
     :return: True if it is a potential ceiling or floor, False otherwise.
@@ -536,13 +536,13 @@ def is_potential_ceiling_or_floor(plane: Type[plane.PlaneRSAIT],
     ::
 
         >>> import findroom
-        >>> plane = plane.PlaneRSAIT((0, 0, 1, 5))
+        >>> plane = plane.PlaneIndoor((0, 0, 1, 5))
         >>> findroom.is_potential_ceiling_or_floor(plane)
         False
-        >>> plane = plane.PlaneRSAIT((0, 1, 0, 5))
+        >>> plane = plane.PlaneIndoor((0, 1, 0, 5))
         >>> findroom.is_potential_ceiling_or_floor(plane)
         True
-        >>> plane = plane.PlaneRSAIT((0.1, 1, 0.1, 5))
+        >>> plane = plane.PlaneIndoor((0.1, 1, 0.1, 5))
         >>> findroom.is_potential_ceiling_or_floor(plane)
         True
         >>> findroom.is_potential_ceiling_or_floor(plane, max_tolerance_degrees=5)
@@ -553,14 +553,14 @@ def is_potential_ceiling_or_floor(plane: Type[plane.PlaneRSAIT],
     return abs((math.pi / 2) - abs(plane_angle)) <= max_tolerance_radians
 
 
-def is_potential_wall(plane: Type[plane.PlaneRSAIT],
+def is_potential_wall(plane: Type[plane.PlaneIndoor],
                       max_tolerance_degrees: float = 10, axis = "Y") -> bool:
     """
     Returns True if the plane model is a potential wall, False otherwise. It checks if the
     plane model is perpendicular to the Y = 0 plane up to some tolerance, default is 10 degrees.
 
     :param plane: Plane.
-    :type plane: Type[plane.PlaneRSAIT]
+    :type plane: Type[plane.PlaneIndoor]
     :param max_tolerance_degrees: Tolerance to perfect alignment in degrees.
     :type max_tolerance_degrees: float
     :return: True if it is a potential ceiling or floor, False otherwise.
@@ -570,13 +570,13 @@ def is_potential_wall(plane: Type[plane.PlaneRSAIT],
     ::
 
         >>> import findroom
-        >>> plane = plane.PlaneRSAIT((0, 1, 0, 5))
+        >>> plane = plane.PlaneIndoor((0, 1, 0, 5))
         >>> findroom.is_potential_wall(plane)
         False
-        >>> plane = plane.PlaneRSAIT((0, 0, 1, 5))
+        >>> plane = plane.PlaneIndoor((0, 0, 1, 5))
         >>> findroom.is_potential_wall(plane)
         True
-        >>> plane = plane.PlaneRSAIT((0.1, 0.1, 1, 5))
+        >>> plane = plane.PlaneIndoor((0.1, 0.1, 1, 5))
         >>> findroom.is_potential_wall(plane)
         True
         >>> findroom.is_potential_wall(plane, max_tolerance_degrees=5)
@@ -588,8 +588,8 @@ def is_potential_wall(plane: Type[plane.PlaneRSAIT],
     return abs((math.pi / 2) - abs(plane_angle)) <= max_tolerance_radians
 
 
-def get_ceiling_and_floor_from_candidates(list_planes: List[Type[plane.PlaneRSAIT]]) \
-        -> Dict[str, Type[plane.PlaneRSAIT]]:
+def get_ceiling_and_floor_from_candidates(list_planes: List[Type[plane.PlaneIndoor]]) \
+        -> Dict[str, Type[plane.PlaneIndoor]]:
     """
     Returns the best guesses for ceiling and floor from the list of candidates. For each plane model
     the point P in the plane closest to the origin is computed. The ceiling is the plane model
@@ -597,19 +597,19 @@ def get_ceiling_and_floor_from_candidates(list_planes: List[Type[plane.PlaneRSAI
     of the Y coordinate of P. It requires a minimum of two candidates.
 
     :param list_planes: List of plane models with floor and ceiling candidates.
-    :type list_planes: List[Type[plane.PlaneRSAIT]]
+    :type list_planes: List[Type[plane.PlaneIndoor]]
     :return: Dictionary with two keys, "ceiling_model" and "floor_model".
-    :rtype: Dict[str, Type[plane.PlaneRSAIT]]
+    :rtype: Dict[str, Type[plane.PlaneIndoor]]
 
     :Example:
 
     ::
 
         >>> import findroom
-        >>> plane1 = plane.PlaneRSAIT((0, 1, 0, 5))
-        >>> plane2 = plane.PlaneRSAIT((0.1, 3, 0.1, 5))
-        >>> plane3 = plane.PlaneRSAIT((0, 11, 0, 5))
-        >>> plane4 = plane.PlaneRSAIT((0.1, 7, 0.1, 5))
+        >>> plane1 = plane.PlaneIndoor((0, 1, 0, 5))
+        >>> plane2 = plane.PlaneIndoor((0.1, 3, 0.1, 5))
+        >>> plane3 = plane.PlaneIndoor((0, 11, 0, 5))
+        >>> plane4 = plane.PlaneIndoor((0.1, 7, 0.1, 5))
         >>> list_planes = [plane1, plane2, plane3, plane4]
         >>> dict_models = findroom.get_ceiling_and_floor_from_candidates(list_planes)
         >>> dict_models
@@ -641,38 +641,38 @@ def get_ceiling_and_floor_from_candidates(list_planes: List[Type[plane.PlaneRSAI
 
 # check if walls are parallel to each other in pairs and return the four walls
 # TODO check minimum distances between parallel walls.
-def return_four_walls_from_candidates(list_planes: List[Type[plane.PlaneRSAIT]],
+def return_four_walls_from_candidates(list_planes: List[Type[plane.PlaneIndoor]],
                                       max_tolerance_degrees: float = 10, debug: bool = False) -> \
-        Optional[Tuple[Type[plane.PlaneRSAIT], Type[plane.PlaneRSAIT],
-                       Type[plane.PlaneRSAIT], Type[plane.PlaneRSAIT]]]:
+        Optional[Tuple[Type[plane.PlaneIndoor], Type[plane.PlaneIndoor],
+                       Type[plane.PlaneIndoor], Type[plane.PlaneIndoor]]]:
     """
     Given a list of plane models candidates to walls, it extracts four of them, such that the first
     and second are parallel, the third and four as well, and these two pairs are perpendicular to
     each other. If no candidates under these conditions are found, it returns None.
 
     :param list_planes: List of all the candidate plane for potential walls.
-    :type list_planes: List[Type[plane.PlaneRSAIT]]
+    :type list_planes: List[Type[plane.PlaneIndoor]]
     :param max_tolerance_degrees: Tolerance for parallel and perpendicular conditions, default to 10 degrees.
     :type max_tolerance_degrees: float
     :param debug: if debug information is shown, default is False.
     :type debug: bool
     :return: The four walls.
-    :rtype: Optional[Tuple[Type[plane.PlaneRSAIT], Type[plane.PlaneRSAIT],
-                       Type[plane.PlaneRSAIT], Type[plane.PlaneRSAIT]]]
+    :rtype: Optional[Tuple[Type[plane.PlaneIndoor], Type[plane.PlaneIndoor],
+                       Type[plane.PlaneIndoor], Type[plane.PlaneIndoor]]]
 
     :Example:
 
     ::
 
         >>> import findroom
-        >>> p1 = plane.PlaneRSAIT((1, 2, 3, 4))
-        >>> p2 = plane.PlaneRSAIT((3, 6.1, 9.2, 12))
-        >>> p3 = plane.PlaneRSAIT((3, 1, -1.67, 10))
-        >>> p4 = plane.PlaneRSAIT((6.1, 2.1, -3.34, -35))
-        >>> p5 = plane.PlaneRSAIT((-6.33, 10.67, -5, 0))
-        >>> p6 = plane.PlaneRSAIT((-6.33, 10.67, -5, 15))
-        >>> p7 = plane.PlaneRSAIT((1, 1, 1, 17))
-        >>> p8 = plane.PlaneRSAIT((-1, -67, 567, 12))
+        >>> p1 = plane.PlaneIndoor((1, 2, 3, 4))
+        >>> p2 = plane.PlaneIndoor((3, 6.1, 9.2, 12))
+        >>> p3 = plane.PlaneIndoor((3, 1, -1.67, 10))
+        >>> p4 = plane.PlaneIndoor((6.1, 2.1, -3.34, -35))
+        >>> p5 = plane.PlaneIndoor((-6.33, 10.67, -5, 0))
+        >>> p6 = plane.PlaneIndoor((-6.33, 10.67, -5, 15))
+        >>> p7 = plane.PlaneIndoor((1, 1, 1, 17))
+        >>> p8 = plane.PlaneIndoor((-1, -67, 567, 12))
         >>> list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]
         >>> findroom.return_four_walls_from_candidates(list_planes)
         ((1, 2, 3, 4), (3, 6.1, 9.2, 12), (-6.33, 10.67, -5, 15), (-6.33, 10.67, -5, 0))
@@ -709,10 +709,10 @@ def return_four_walls_from_candidates(list_planes: List[Type[plane.PlaneRSAIT]],
 
 
 # check if the list of plane_models define a room, and return the ceiling, floor and four walls
-def find_room_planes(planes: List[Type[plane.PlaneRSAIT]],
+def find_room_planes(planes: List[Type[plane.PlaneIndoor]],
                      max_tolerance_degrees: float = 10, minimum_distance: float = 2.0,
                      debug: bool = False) -> \
-        Optional[Dict[str, Type[plane.PlaneRSAIT]]]:
+        Optional[Dict[str, Type[plane.PlaneIndoor]]]:
     """
     Returns the ceiling, floor and four walls plane models corresponding to a room from a list of plane
     models. It supposes that the ceiling is +Y. The room has to be wider than *minimum_distance* from
@@ -723,7 +723,7 @@ def find_room_planes(planes: List[Type[plane.PlaneRSAIT]],
     are perpendicular to wall_2_1 and wall_2_2.
 
     :param planes: List of plane models from which extract the room.
-    :type planes: List[Type[plane.PlaneRSAIT]]
+    :type planes: List[Type[plane.PlaneIndoor]]
     :param max_tolerance_degrees: Tolerance for parallel and perpendicular conditions, default is 10 degrees.
     :type max_tolerance_degrees: float
     :param minimum_distance: Minimum distance between the walls of the room. Default value is 2.0.
@@ -731,33 +731,33 @@ def find_room_planes(planes: List[Type[plane.PlaneRSAIT]],
     :param debug: if debug information is shown, default is False.
     :type debug: bool
     :return: Dictionary with ceiling, floor and walls plane models. None if no suitable candidates are found. The keys are "ceiling", "floor", "wall_1_1", "wall_1_2", "wall_2_1", "wall_2_2".
-    :rtype: Optional[Dict[str, Type[plane.PlaneRSAIT]]]
+    :rtype: Optional[Dict[str, Type[plane.PlaneIndoor]]]
 
     :Example:
 
     ::
 
         >>> import findroom
-        >>> p1 = plane.PlaneRSAIT((1, 2, 3, 4))
-        >>> p2 = plane.PlaneRSAIT((3, 6.1, 9.2, 12))
-        >>> p3 = plane.PlaneRSAIT((3, 1, -1.67, 10))
-        >>> p4 = plane.PlaneRSAIT((6.1, 2.1, -3.34, -35))
-        >>> p5 = plane.PlaneRSAIT((-6.33, 10.67, -5, 0))
-        >>> p6 = plane.PlaneRSAIT((-6.33, 10.67, -5, 15))
-        >>> p7 = plane.PlaneRSAIT((1, 1, 1, 17))
-        >>> p8 = plane.PlaneRSAIT((-1, -67, 567, 12))
+        >>> p1 = plane.PlaneIndoor((1, 2, 3, 4))
+        >>> p2 = plane.PlaneIndoor((3, 6.1, 9.2, 12))
+        >>> p3 = plane.PlaneIndoor((3, 1, -1.67, 10))
+        >>> p4 = plane.PlaneIndoor((6.1, 2.1, -3.34, -35))
+        >>> p5 = plane.PlaneIndoor((-6.33, 10.67, -5, 0))
+        >>> p6 = plane.PlaneIndoor((-6.33, 10.67, -5, 15))
+        >>> p7 = plane.PlaneIndoor((1, 1, 1, 17))
+        >>> p8 = plane.PlaneIndoor((-1, -67, 567, 12))
         >>> list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]
         >>> room_planes = findroom.find_room_planes(list_plane_models)
         >>> type(room_planes)
         <class 'NoneType'>
-        >>> p1 = plane.PlaneRSAIT((0, 2, 0, 4))
-        >>> p2 = plane.PlaneRSAIT((0.1, 3.1, 0.1, -10))
-        >>> p3 = plane.PlaneRSAIT((3, 0, 0, 10))
-        >>> p4 = plane.PlaneRSAIT((6, 0.1, -0.2, -35))
-        >>> p5 = plane.PlaneRSAIT((0, 0, -5, 0))
-        >>> p6 = plane.PlaneRSAIT((1, 0.3, 35, 15))
-        >>> p7 = plane.PlaneRSAIT((1, 1, 1, 17))
-        >>> p8 = plane.PlaneRSAIT((-1, -67, 567, 12))
+        >>> p1 = plane.PlaneIndoor((0, 2, 0, 4))
+        >>> p2 = plane.PlaneIndoor((0.1, 3.1, 0.1, -10))
+        >>> p3 = plane.PlaneIndoor((3, 0, 0, 10))
+        >>> p4 = plane.PlaneIndoor((6, 0.1, -0.2, -35))
+        >>> p5 = plane.PlaneIndoor((0, 0, -5, 0))
+        >>> p6 = plane.PlaneIndoor((1, 0.3, 35, 15))
+        >>> p7 = plane.PlaneIndoor((1, 1, 1, 17))
+        >>> p8 = plane.PlaneIndoor((-1, -67, 567, 12))
         >>> list_plane_models = [p1, p7, p8, p6, p5, p4, p3, p2]
         >>> room_planes = findroom.find_room_planes(list_plane_models)
         >>> room_planes
@@ -976,7 +976,7 @@ def change_axes_abel_to_axes_hololens(pcd: o3d.geometry.PointCloud) -> o3d.geome
     return pcd_results
 
 def extract_boundary_slice(pcd: o3d.geometry.PointCloud,
-                           plane: Type[plane.PlaneRSAIT],
+                           plane: Type[plane.PlaneIndoor],
                            limit_points: Tuple[Tuple[float, float, float],
                                                Tuple[float, float, float],
                                                Tuple[float, float, float],
@@ -998,7 +998,7 @@ def extract_boundary_slice(pcd: o3d.geometry.PointCloud,
     return get_inside_list_of_points(pcd, np_points)
 
 def extract_boundaries_slices(pcd: o3d.geometry.PointCloud,
-                              planes: Dict[str, Type[plane.PlaneRSAIT]],
+                              planes: Dict[str, Type[plane.PlaneIndoor]],
                               plane_thickness: float = 0.05) -> Dict[str, o3d.geometry.PointCloud]:
     limit_points = find_limit_points_from_room_planes(planes)
     slices_dict = {}

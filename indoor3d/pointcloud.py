@@ -19,14 +19,14 @@ from collections import Counter
 
 numeric = Union[int, float, np.number]
 
-def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plane: Type[plane.PlaneRSAIT]) -> float:
+def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plane: Type[plane.PlaneIndoor]) -> float:
     """
     Returns the distance between the pointcloud and the plane.
 
     :param pcd: Pointcloud.
     :type pcd: o3d.geometry.PointCloud
     :param plane: Plane model.
-    :type plane: Type[plane.PlaneRSAIT]
+    :type plane: Type[plane.PlaneIndoor]
     :return: Distance between the pointcloud and the plane.
     :rtype: float
 
@@ -34,13 +34,13 @@ def get_distance_between_pointcloud_and_plane(pcd: o3d.geometry.PointCloud, plan
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import plane
         >>> import open3d as o3d
         >>> mesh_box = o3d.geometry.TriangleMesh.create_box(width=1.0, height=5.0, depth=1.0)
         >>> pcd = mesh_box.sample_points_uniformly(number_of_points = 10000, seed = 42)
-        >>> plane = plane.PlaneRSAIT((1, 1, 1, 1))
-        >>> distance = pointcloudrsait.get_distance_between_pointcloud_and_plane(pcd, plane)
+        >>> plane = plane.PlaneIndoor((1, 1, 1, 1))
+        >>> distance = pointcloud.get_distance_between_pointcloud_and_plane(pcd, plane)
         >>> distance
         0.5886230622926497
     """
@@ -70,11 +70,11 @@ def get_distance_between_pointcloud_and_point(pcd: o3d.geometry.PointCloud, poin
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> mesh_box = o3d.geometry.TriangleMesh.create_box(width=1.0, height=5.0, depth=1.0)
         >>> pcd = mesh_box.sample_points_uniformly(number_of_points = 10000, seed = 42)
-        >>> distance = pointcloudrsait.get_distance_between_pointcloud_and_point(pcd, [10, 10, 10])
+        >>> distance = pointcloud.get_distance_between_pointcloud_and_point(pcd, [10, 10, 10])
         >>> distance
         13.703526637666375
     """
@@ -87,7 +87,7 @@ def get_distance_between_pointcloud_and_point(pcd: o3d.geometry.PointCloud, poin
 # return the points in the plane, and in the two sides of the plane
 # tolerance is the maximum distance of the points in the plane to the plane
 def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointCloud,
-                                                        plane: Type[plane.PlaneRSAIT],
+                                                        plane: Type[plane.PlaneIndoor],
                                                         plane_thickness: float = 0,
                                                         debug: bool = False) -> Dict[str, o3d.geometry.PointCloud]:
     '''
@@ -102,7 +102,7 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
     :param pcd: Pointcloud to be segmented.
     :type pcd: o3d.geometry.PointCloud
     :param plane_model: Plane to partition the space.
-    :type plane_model: Type[plane.PlaneRSAIT]
+    :type plane_model: Type[plane.PlaneIndoor]
     :param plane_thickness: Maximum distance from the plane to be considered for the pointcloud "in_plane".
     :type plane_thickness: float
     :param debug: if debug information is shown, default is False.
@@ -114,15 +114,15 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import plane
         >>> import open3d as o3d
         >>> # import os
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane = plane.PlaneRSAIT((0, 0, 1, 0))
-        >>> dict_clouds = pointcloudrsait.get_partition_of_pointcloud_by_plane_with_thickness(pcd, plane, plane_thickness = 10)
+        >>> plane = plane.PlaneIndoor((0, 0, 1, 0))
+        >>> dict_clouds = pointcloud.get_partition_of_pointcloud_by_plane_with_thickness(pcd, plane, plane_thickness = 10)
         >>> dict_clouds
         {'in_plane': PointCloud with 14374 points., 'positive': PointCloud with 57124 points., 'negative': PointCloud with 61511 points.}
     '''
@@ -161,8 +161,8 @@ def get_partition_of_pointcloud_by_plane_with_thickness(pcd: o3d.geometry.PointC
 
 #@profile
 def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d.geometry.PointCloud,
-                                                                        plane_1: Type[plane.PlaneRSAIT],
-                                                                        plane_2: Type[plane.PlaneRSAIT],
+                                                                        plane_1: Type[plane.PlaneIndoor],
+                                                                        plane_2: Type[plane.PlaneIndoor],
                                                                         plane_thickness: float = 0) -> Dict[str, o3d.geometry.PointCloud]:
     """
     Given a point cloud and two parallel (up to some tolerance not defined here) plane models,
@@ -178,9 +178,9 @@ def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d
     :param pcd: Pointcloud to be segmented.
     :type pcd: o3d.geometry.PointCloud
     :param plane_1: Plane model to partition the space.
-    :type plane_1: Type[plane.PlaneRSAIT]
+    :type plane_1: Type[plane.PlaneIndoor]
     :param plane_2: Plane model to partition the space.
-    :type plane_2: Type[plane.PlaneRSAIT]
+    :type plane_2: Type[plane.PlaneIndoor]
     :param plane_thickness: Maximum distance from the plane to be considered for the pointcloud "in_plane".
     :type plane_thickness: float
     :return: Dictionary of pointclouds as values and with five keys: "in_plane_1", "in_plane_2", "middle", "one_side" and "other_side".
@@ -190,16 +190,16 @@ def get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd: o3d
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import plane
         >>> import open3d as o3d
         >>> # import os
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane_1 = plane.PlaneRSAIT((0, 0, 1, 0))
-        >>> plane_2 = plane.PlaneRSAIT((0, 0, 1, 30))
-        >>> dict_clouds = pointcloudrsait.get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd, plane_1, plane_2, plane_thickness = 5)
+        >>> plane_1 = plane.PlaneIndoor((0, 0, 1, 0))
+        >>> plane_2 = plane.PlaneIndoor((0, 0, 1, 30))
+        >>> dict_clouds = pointcloud.get_partition_of_pointcloud_by_quasi_parallel_planes_with_thickness(pcd, plane_1, plane_2, plane_thickness = 5)
         >>> dict_clouds
         {'one_side': PointCloud with 60690 points., 'other_side': PointCloud with 42574 points., 'middle': PointCloud with 14660 points., 'in_plane_1': PointCloud with 7192 points., 'in_plane_2': PointCloud with 7893 points.}
     """
@@ -247,14 +247,14 @@ def check_points_inside_convex_hull(points: Iterable[Iterable[float]], hull: sci
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import numpy as np
         >>> from scipy.spatial import ConvexHull
         >>> points = np.array([[-2.65908417, 1.66316594, -12.05967958], [0.0459558, 1.72705225, -5.76867598], [ -6.27471812,   1.66093731,  -3.02014327], [-9.10951204, 1.59325844, -9.76566801], [-2.56569358, -1.59892799, -12.08053818], [0.1378323 , -1.63325758, -5.80021574], [-6.33750632, -1.6103617 , -2.9846542], [-9.17057479, -1.57383548, -9.73196329], [-4.49166262, 0.0285039, -7.65144228]])
         >>> hull = ConvexHull(points)
-        >>> pointcloudrsait.check_points_inside_convex_hull([(points[2] + points[3])/2], hull)
+        >>> pointcloud.check_points_inside_convex_hull([(points[2] + points[3])/2], hull)
         array([ True])
-        >>> pointcloudrsait.check_points_inside_convex_hull([[0,0,0]], hull)
+        >>> pointcloud.check_points_inside_convex_hull([[0,0,0]], hull)
         array([False])
     """
     A = hull.equations[:, 0:-1]
@@ -282,7 +282,7 @@ def get_pointcloud_after_substracting_convex_hull(pcd: o3d.geometry.PointCloud, 
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> from scipy.spatial import ConvexHull
         >>> mesh_box = o3d.geometry.TriangleMesh.create_box(width=1.0, height=5.0, depth=1.0)
@@ -290,8 +290,8 @@ def get_pointcloud_after_substracting_convex_hull(pcd: o3d.geometry.PointCloud, 
         >>> # pcd.paint_uniform_color((0,0,1))
         >>> points = [[0,0,0], [0,0,1], [0,1,0], [0,1,1], [1,0,0], [1,0,1], [1,1,0], [1,1,1]]
         >>> hull = ConvexHull(points)
-        >>> pcd_minus_hull = pointcloudrsait.get_pointcloud_after_substracting_convex_hull(pcd, hull)
-        >>> pcd_inside_hull = pointcloudrsait.get_pointcloud_after_substracting_convex_hull(pcd, hull, reverse = True)
+        >>> pcd_minus_hull = pointcloud.get_pointcloud_after_substracting_convex_hull(pcd, hull)
+        >>> pcd_inside_hull = pointcloud.get_pointcloud_after_substracting_convex_hull(pcd, hull, reverse = True)
         >>> # pcd_inside_hull.paint_uniform_color((1,0,0))
         >>> # o3d.visualization.draw_geometries([pcd_inside_hull, pcd_minus_hull])
         >>> pcd_minus_hull
@@ -339,13 +339,13 @@ def get_pointcloud_uniform_sample_inside_convex_hull_of_pointcloud(pcd: o3d.geom
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> import numpy as np
         >>> points = np.array([[-2.65908417, 1.66316594, -12.05967958], [0.0459558, 1.72705225, -5.76867598], [ -6.27471812,   1.66093731,  -3.02014327], [-9.10951204, 1.59325844, -9.76566801], [-2.56569358, -1.59892799, -12.08053818], [0.1378323 , -1.63325758, -5.80021574], [-6.33750632, -1.6103617 , -2.9846542], [-9.17057479, -1.57383548, -9.73196329], [-4.49166262, 0.0285039, -7.65144228]])
         >>> pcd = o3d.geometry.PointCloud()
         >>> pcd.points = o3d.utility.Vector3dVector(points)
-        >>> pcd_inside = pointcloudrsait.get_pointcloud_uniform_sample_inside_convex_hull_of_pointcloud(pcd, seed = 42)
+        >>> pcd_inside = pointcloud.get_pointcloud_uniform_sample_inside_convex_hull_of_pointcloud(pcd, seed = 42)
         >>> # o3d.visualization.draw_geometries([pcd_inside])
         >>> pcd_inside.points[0]
         array([-3.98803751,  0.84332722, -4.3866304 ])
@@ -378,14 +378,14 @@ def get_points_uniform_sampled_inside_oriented_box(box: o3d.geometry.OrientedBou
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> import numpy as np
         >>> points = np.array([[-2.65908417, 1.66316594, -12.05967958], [0.0459558, 1.72705225, -5.76867598], [ -6.27471812,   1.66093731,  -3.02014327], [-9.10951204, 1.59325844, -9.76566801], [-2.56569358, -1.59892799, -12.08053818], [0.1378323 , -1.63325758, -5.80021574], [-6.33750632, -1.6103617 , -2.9846542], [-9.17057479, -1.57383548, -9.73196329], [-4.49166262, 0.0285039, -7.65144228]])
         >>> pcd = o3d.geometry.PointCloud()
         >>> pcd.points = o3d.utility.Vector3dVector(points)
         >>> oriented_bounding_box = pcd.get_oriented_bounding_box()
-        >>> points_in_oriented_box = pointcloudrsait.get_points_uniform_sampled_inside_oriented_box(oriented_bounding_box, size = 2, seed = 42)
+        >>> points_in_oriented_box = pointcloud.get_points_uniform_sampled_inside_oriented_box(oriented_bounding_box, size = 2, seed = 42)
         >>> for point in points_in_oriented_box: print (point)
         [-4.82733002 -1.33178146 -3.41651872]
         [-6.26834682  1.62343098 -6.66719078]
@@ -431,8 +431,8 @@ def get_points_uniform_sampled_inside_axis_aligned_box(min_x: float, max_x: floa
 
     ::
 
-        >>> import pointcloudrsait
-        >>> A = pointcloudrsait.get_points_uniform_sampled_inside_axis_aligned_box(0, 1, 0, 1, 0, 1, size=10, seed = 42)
+        >>> import pointcloud
+        >>> A = pointcloud.get_points_uniform_sampled_inside_axis_aligned_box(0, 1, 0, 1, 0, 1, size=10, seed = 42)
         >>> for point in A: print(point)
         [0.77395605 0.37079802 0.75808774]
         [0.43887844 0.92676499 0.35452597]
@@ -470,7 +470,7 @@ def get_pointcloud_after_substracting_point_cloud(pcd: o3d.geometry.PointCloud, 
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> mesh_box = o3d.geometry.TriangleMesh.create_box(width=1.0, height=5.0, depth=1.0)
         >>> pcd_1 = mesh_box.sample_points_uniformly(number_of_points = 10000, seed = 42)
@@ -478,11 +478,11 @@ def get_pointcloud_after_substracting_point_cloud(pcd: o3d.geometry.PointCloud, 
         >>> pcd_2 = mesh_box.sample_points_uniformly(number_of_points = 10000, seed = 42)
         >>> # pcd_1.paint_uniform_color([1, 0, 0])
         >>> # pcd_2.paint_uniform_color([0, 1, 0])
-        >>> pcd_1_minus_pcd_2 = pointcloudrsait.get_pointcloud_after_substracting_point_cloud(pcd_1, pcd_2, threshold = 0.02)
+        >>> pcd_1_minus_pcd_2 = pointcloud.get_pointcloud_after_substracting_point_cloud(pcd_1, pcd_2, threshold = 0.02)
         >>> pcd_1_minus_pcd_2
         PointCloud with 5832 points.
         >>> # o3d.visualization.draw_geometries([pcd_1_minus_pcd_2])
-        >>> pcd_2_minus_pcd_1 = pointcloudrsait.get_pointcloud_after_substracting_point_cloud(pcd_2, pcd_1, threshold = 0.02)
+        >>> pcd_2_minus_pcd_1 = pointcloud.get_pointcloud_after_substracting_point_cloud(pcd_2, pcd_1, threshold = 0.02)
         >>> pcd_2_minus_pcd_1
         PointCloud with 4726 points.
         >>> # o3d.visualization.draw_geometries([pcd_2_minus_pcd_1])
@@ -526,10 +526,10 @@ def get_line_set_from_cuboid_points(points: Iterable[Iterable[float]],
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> points = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]]
-        >>> line_set = pointcloudrsait.get_line_set_from_cuboid_points(points, color = (0, 1, 0))
+        >>> line_set = pointcloud.get_line_set_from_cuboid_points(points, color = (0, 1, 0))
         >>> # o3d.visualization.draw_geometries([line_set])
         >>> line_set
         LineSet with 12 lines.
@@ -567,16 +567,16 @@ def create_pointcloud_plane_from_four_points_and_thickness(points: Iterable[Iter
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> import numpy as np
         >>> points = [[5, 0, 0], [5, 1, 0], [6, 1, 0], [6, 0, 0]]
-        >>> pcd = pointcloudrsait.create_pointcloud_plane_from_four_points_and_thickness(points, seed = 42, color=(0, 1, 0))
+        >>> pcd = pointcloud.create_pointcloud_plane_from_four_points_and_thickness(points, seed = 42, color=(0, 1, 0))
         >>> pcd.points[0]
         array([5.72072839, 0.77395605, 0.02407728])
         >>> # o3d.visualization.draw_geometries([pcd])
         >>> points = np.array([[-2.65908417, 1.66316594, -12.05967958], [0.0459558, 1.72705225, -5.76867598], [-6.27471812, 1.66093731, -3.02014327], [-9.10951204, 1.59325844, -9.76566801]])
-        >>> pcd = pointcloudrsait.create_pointcloud_plane_from_four_points_and_thickness(points, size = 300000, seed = 42, color=(0, 1, 0))
+        >>> pcd = pointcloud.create_pointcloud_plane_from_four_points_and_thickness(points, size = 300000, seed = 42, color=(0, 1, 0))
         >>> pcd.points[0]
         array([-2.81447494,  1.69442252, -5.9641852 ])
         >>> # o3d.visualization.draw_geometries([pcd])
@@ -627,13 +627,13 @@ def get_pointcloud_negative_of_pointcloud(pcd: o3d.geometry.PointCloud, size: in
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import open3d as o3d
         >>> # import os
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> negative_pcd = pointcloudrsait.get_pointcloud_negative_of_pointcloud(pcd, size = 10000, seed = 42, threshold = 5)
+        >>> negative_pcd = pointcloud.get_pointcloud_negative_of_pointcloud(pcd, size = 10000, seed = 42, threshold = 5)
         >>> # o3d.visualization.draw_geometries([negative_pcd])
         >>> negative_pcd.points[0]
         array([  1.92245891, -90.53361029, -79.71444622])
@@ -643,7 +643,7 @@ def get_pointcloud_negative_of_pointcloud(pcd: o3d.geometry.PointCloud, size: in
     return get_pointcloud_after_substracting_point_cloud(pcd_inside, pcd, threshold)
 
 def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCloud,
-                                                       plane: Type[plane.PlaneRSAIT], percentage: float = 1.0,
+                                                       plane: Type[plane.PlaneIndoor], percentage: float = 1.0,
                                                        seed: int = None) -> o3d.geometry.PointCloud:
     """
     Computes a projection of a pointcloud into a plane. The number of points of the projection is **percentage** points of the original pointcloud.
@@ -651,7 +651,7 @@ def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCl
     :param pcd: Pointcloud.
     :param pcd: o3d.geometry.PointCloud
     :param plane: Plane.
-    :type plane: Type[PlaneRSAIT]
+    :type plane: Type[PlaneIndoor]
     :param percentage: Percentage of points with respect to the original pointcloud in the projected pointcloud.
     :type percentage: float
     :param seed: Seed of the random number generator.
@@ -663,15 +663,15 @@ def get_pointcloud_projection_onto_plane_of_pointcloud(pcd: o3d.geometry.PointCl
 
     ::
 
-        >>> import pointcloudrsait
+        >>> import pointcloud
         >>> import plane
         >>> import open3d as o3d
         >>> # import os
         >>> # home_dir = os.getenv("HOME")
         >>> # pcd = o3d.io.read_point_cloud(home_dir + "/Github/Lantegi/Code/Open3D/gui/skull.ply")
         >>> pcd = o3d.io.read_point_cloud("Code/Open3D/gui/skull.ply")
-        >>> plane = plane.PlaneRSAIT((1, 2, 3, 4))
-        >>> projection = pointcloudrsait.get_pointcloud_projection_onto_plane_of_pointcloud(pcd, plane, percentage = 0.3, seed = 42)
+        >>> plane = plane.PlaneIndoor((1, 2, 3, 4))
+        >>> projection = pointcloud.get_pointcloud_projection_onto_plane_of_pointcloud(pcd, plane, percentage = 0.3, seed = 42)
         >>> # o3d.visualization.draw_geometries([projection])
         >>> projection.points[0]
         array([ 29.08498429, -89.64099743,  48.73233686])

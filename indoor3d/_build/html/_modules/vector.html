@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vector &#8212; indoor3d 0 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">indoor3d 0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">vector</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for vector</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">In this module we embed all the functions related to general geometry questions.</span>
+<span class="sd">The *plane_model* refers to four values (a, b, c, d) which</span>
+<span class="sd">corresponds to the equation form Ax + By + Cz + D = 0. The normal to a plane is (A, B, C).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Iterable</span>
+
+<span class="n">numeric</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">]</span>
+
+<div class="viewcode-block" id="get_vector_1D"><a class="viewcode-back" href="../api/vector.get_vector_1D.html#vector.get_vector_1D">[docs]</a><span class="k">def</span> <span class="nf">get_vector_1D</span><span class="p">(</span><span class="n">v</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">numeric</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the np.ndarray vector corresponding to the input parameter.</span>
+
+<span class="sd">    :param v: Iterable of numeric values representing a vector.</span>
+<span class="sd">    :type v: Iterable[numeric]</span>
+<span class="sd">    :return: The np.ndarray vector corresponding to the input iterable.</span>
+<span class="sd">    :rtype: np.ndarray</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import vector</span>
+<span class="sd">        &gt;&gt;&gt; v = (1,2,3)</span>
+<span class="sd">        &gt;&gt;&gt; npv = vector.get_vector_1D(v)</span>
+<span class="sd">        &gt;&gt;&gt; npv</span>
+<span class="sd">        array([1, 2, 3])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">npv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">npv</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">npv</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">))</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">npv</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">npv</span></div>
+
+<div class="viewcode-block" id="get_vector_unit_vector"><a class="viewcode-back" href="../api/vector.get_vector_unit_vector.html#vector.get_vector_unit_vector">[docs]</a><span class="k">def</span> <span class="nf">get_vector_unit_vector</span><span class="p">(</span><span class="n">v</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">numeric</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the unit vector corresponding to the vector represented by the input parameter.</span>
+
+<span class="sd">    :param v: Iterable of numeric values representing a vector.</span>
+<span class="sd">    :type v: Iterable[numeric]</span>
+<span class="sd">    :return: The unit vector corresponding to the input iterable.</span>
+<span class="sd">    :rtype: np.ndarray</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import vector</span>
+<span class="sd">        &gt;&gt;&gt; v = (1,2,3)</span>
+<span class="sd">        &gt;&gt;&gt; unit_v = vector.get_vector_unit_vector(v)</span>
+<span class="sd">        &gt;&gt;&gt; unit_v</span>
+<span class="sd">        array([0.26726124, 0.53452248, 0.80178373])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">npv</span> <span class="o">=</span> <span class="n">get_vector_1D</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">npv</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">npv</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="get_angle_between_vectors"><a class="viewcode-back" href="../api/vector.get_angle_between_vectors.html#vector.get_angle_between_vectors">[docs]</a><span class="k">def</span> <span class="nf">get_angle_between_vectors</span><span class="p">(</span><span class="n">v1</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">numeric</span><span class="p">],</span> <span class="n">v2</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">numeric</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the angle in radians between two vectors.</span>
+
+<span class="sd">    :param v1: Iterable of numeric values representing the first vector.</span>
+<span class="sd">    :type v1: np.ndarray</span>
+<span class="sd">    :param v2: Iterable of numeric values representing the second vector.</span>
+<span class="sd">    :type v2: np.ndarray</span>
+<span class="sd">    :return: The angle between the two vectors, in radians.</span>
+<span class="sd">    :rtype: float</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import vector</span>
+<span class="sd">        &gt;&gt;&gt; v1 = np.array([1,2,3])</span>
+<span class="sd">        &gt;&gt;&gt; v2 = np.array([3,6,-5])</span>
+<span class="sd">        &gt;&gt;&gt; angle = vector.get_angle_between_vectors(v1, v2)</span>
+<span class="sd">        &gt;&gt;&gt; angle</span>
+<span class="sd">        1.5707963267948966</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">npv1</span> <span class="o">=</span> <span class="n">get_vector_1D</span><span class="p">(</span><span class="n">v1</span><span class="p">)</span>
+    <span class="n">npv2</span> <span class="o">=</span> <span class="n">get_vector_1D</span><span class="p">(</span><span class="n">v2</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">npv1</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="n">npv2</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="n">dot_product</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">get_vector_unit_vector</span><span class="p">(</span><span class="n">npv1</span><span class="p">),</span> <span class="n">get_vector_unit_vector</span><span class="p">(</span><span class="n">npv2</span><span class="p">))</span>
+    <span class="n">angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">dot_product</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">angle</span></div>
+
+<div class="viewcode-block" id="get_point_further_along_direction"><a class="viewcode-back" href="../api/vector.get_point_further_along_direction.html#vector.get_point_further_along_direction">[docs]</a><span class="k">def</span> <span class="nf">get_point_further_along_direction</span><span class="p">(</span><span class="n">p1</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">p2</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a point located at a given distance from the first point along the direction from the first to the second point.</span>
+
+<span class="sd">    :param p1: First point.</span>
+<span class="sd">    :type p1: Iterable[float]</span>
+<span class="sd">    :param p2: Second point.</span>
+<span class="sd">    :type p2: Iterable[float]</span>
+<span class="sd">    :param distance: Distance from the first point.</span>
+<span class="sd">    :type distance: float</span>
+<span class="sd">    :return: Point located at a given distance from the first point along the direction from the first to the second point.</span>
+<span class="sd">    :rtype: np.ndarray</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        &gt;&gt;&gt; import vector</span>
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt; p1 = np.array([1,2,3])</span>
+<span class="sd">        &gt;&gt;&gt; p2 = np.array([3,6,-5])</span>
+<span class="sd">        &gt;&gt;&gt; new_point = vector.get_point_further_along_direction(p1, p2, distance=2.0)</span>
+<span class="sd">        &gt;&gt;&gt; new_point</span>
+<span class="sd">        array([ 3.43643578,  6.87287156, -6.74574312])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">first_point</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">p1</span><span class="p">)</span>
+    <span class="n">second_point</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">p2</span><span class="p">)</span>
+    <span class="n">vector_director</span> <span class="o">=</span> <span class="n">second_point</span> <span class="o">-</span> <span class="n">first_point</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vector_director</span><span class="p">)</span>
+    <span class="n">new_module</span> <span class="o">=</span> <span class="n">module</span> <span class="o">+</span> <span class="n">distance</span>
+    <span class="n">new_vector_director</span> <span class="o">=</span> <span class="n">vector_director</span> <span class="o">*</span> <span class="n">new_module</span> <span class="o">/</span> <span class="n">module</span>
+    <span class="k">return</span> <span class="n">first_point</span> <span class="o">+</span> <span class="n">new_vector_director</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">indoor3d 0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">vector</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2020, RSAIT.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

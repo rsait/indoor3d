@@ -22,9 +22,9 @@ def get_vector_1D(v: Iterable[numeric]) -> np.ndarray:
 
     ::
 
-        >>> import vectorrsait
+        >>> import vector
         >>> v = (1,2,3)
-        >>> npv = vectorrsait.get_vector_1D(v)
+        >>> npv = vector.get_vector_1D(v)
         >>> npv
         array([1, 2, 3])
     """
@@ -47,9 +47,9 @@ def get_vector_unit_vector(v: Iterable[numeric]) -> np.ndarray:
 
     ::
 
-        >>> import vectorrsait
+        >>> import vector
         >>> v = (1,2,3)
-        >>> unit_v = vectorrsait.get_vector_unit_vector(v)
+        >>> unit_v = vector.get_vector_unit_vector(v)
         >>> unit_v
         array([0.26726124, 0.53452248, 0.80178373])
     """
@@ -71,10 +71,10 @@ def get_angle_between_vectors(v1: Iterable[numeric], v2: Iterable[numeric]) -> f
 
     ::
 
-        >>> import vectorrsait
+        >>> import vector
         >>> v1 = np.array([1,2,3])
         >>> v2 = np.array([3,6,-5])
-        >>> angle = vectorrsait.get_angle_between_vectors(v1, v2)
+        >>> angle = vector.get_angle_between_vectors(v1, v2)
         >>> angle
         1.5707963267948966
     """
@@ -102,11 +102,11 @@ def get_point_further_along_direction(p1: Iterable[float], p2: Iterable[float], 
 
     ::
 
-        >>> import vectorrsait
+        >>> import vector
         >>> import numpy as np
         >>> p1 = np.array([1,2,3])
         >>> p2 = np.array([3,6,-5])
-        >>> new_point = vectorrsait.get_point_further_along_direction(p1, p2, distance=2.0)
+        >>> new_point = vector.get_point_further_along_direction(p1, p2, distance=2.0)
         >>> new_point
         array([ 3.43643578,  6.87287156, -6.74574312])
     """
