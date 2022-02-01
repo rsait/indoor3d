@@ -11,7 +11,7 @@ import math
 from sympy import Point3D, Plane
 from typing import List, Tuple, Dict, Union, Optional, Iterable, NamedTuple
 from typing import Type
-import plane
+import indoor3d.plane as plane
 from scipy.spatial import ConvexHull
 import scipy
 from numpy.random import default_rng

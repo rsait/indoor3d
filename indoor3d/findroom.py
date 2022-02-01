@@ -11,8 +11,8 @@ from typing import Tuple, List, Dict, Optional, Any, Type
 import pickle as pkl
 import os
 from scipy.spatial import ConvexHull
-import plane
-import pointcloud
+import indoor3d.plane as plane
+import indoor3d.pointcloud as pointcloud
 
 def save_room_context(pcd: o3d.geometry.PointCloud,
                       pcd_cropped: o3d.geometry.PointCloud, pcd_not_cropped: o3d.geometry.PointCloud,
@@ -681,16 +681,16 @@ def return_four_walls_from_candidates(list_planes: List[Type[plane.PlaneIndoor]]
     # it is kind of finding equivalence classes
     if debug:
         print("Entering in return_four_walls")
-        for plane in list_planes:
-            print(plane)
+        for current_plane in list_planes:
+            print(current_plane)
 
     list_of_parallel_classes = plane.get_partition_of_list_of_planes_by_parallelism(list_planes, max_tolerance_degrees)
 
     if debug:
         for parallel_class in list_of_parallel_classes:
             print("Parallel class:")
-            for plane in parallel_class:
-                print(plane)
+            for current_plane in parallel_class:
+                print(current_plane)
 
     # remove parallel classes with less than two elements
     list_of_parallel_classes = [parallel_class for parallel_class in list_of_parallel_classes
@@ -767,11 +767,11 @@ def find_room_planes(planes: List[Type[plane.PlaneIndoor]],
         return None
     list_potential_ceiling_or_floor = []
     list_potential_walls = []
-    for plane in planes:
-        if is_potential_ceiling_or_floor(plane, max_tolerance_degrees=max_tolerance_degrees):
-            list_potential_ceiling_or_floor.append(plane)
+    for current_plane in planes:
+        if is_potential_ceiling_or_floor(current_plane, max_tolerance_degrees=max_tolerance_degrees):
+            list_potential_ceiling_or_floor.append(current_plane)
         if is_potential_wall(plane, max_tolerance_degrees=max_tolerance_degrees):
-            list_potential_walls.append(plane)
+            list_potential_walls.append(current_plane)
     if len(list_potential_ceiling_or_floor) < 2:
         return None
     if len(list_potential_walls) < 4:
@@ -782,13 +782,13 @@ def find_room_planes(planes: List[Type[plane.PlaneIndoor]],
     floor_model = dict_models["floor_model"]
     if debug:
         print("list_potential_ceiling_or_floor")
-        for plane in list_potential_ceiling_or_floor:
-            print(plane)
+        for current_plane in list_potential_ceiling_or_floor:
+            print(current_plane)
         print("Ceiling:", ceiling_model)
         print("Floor:", floor_model)
         print("list_potential_walls")
-        for plane in list_potential_walls:
-            print(plane)
+        for current_plane in list_potential_walls:
+            print(current_plane)
     walls = return_four_walls_from_candidates(list_potential_walls, max_tolerance_degrees=max_tolerance_degrees,
                                               debug=debug)
     if walls is None:

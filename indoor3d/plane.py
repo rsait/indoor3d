@@ -6,7 +6,7 @@ corresponds to the equation form Ax + By + Cz + D = 0. The normal to a plane is 
 
 import numpy as np
 import math
-import vector
+import indoor3d.vector as vector
 from typing import List, Tuple, Union, Optional, Iterable
 from typing import Type
 

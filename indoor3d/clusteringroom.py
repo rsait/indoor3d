@@ -1,5 +1,5 @@
-import pointcloud
-import plane
+import indoor3d.pointcloud as pointcloud
+import indoor3d.plane as plane
 from typing import List, Dict, Optional, Tuple, Any, Type
 from collections import defaultdict, namedtuple
 import numpy as np
