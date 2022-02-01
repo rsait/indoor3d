@@ -109,7 +109,7 @@ Let find the clusters inside the room.
 
 ![Clustering of the room](images/pcd_room_clusters.png)
 
-We can also get and idea of the boundaries of the clusters:
+We can also get some idea about the boundaries of the clusters:
 
 ```python
 >>> list_clusters_painted = clusteringroom.paint_list_of_clusters(list_clusters)
